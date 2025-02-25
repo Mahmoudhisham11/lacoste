@@ -16,9 +16,10 @@
 .addContainer {
     position: relative;
     width: 80%;
-    min-height: 500px;
+    height: 550px;
     background-color: white;
     border-radius: 8px;
+    overflow: hidden;
 }
 .addContainer .title {
     width: 100%;
@@ -34,10 +35,11 @@
 }
 .addContainer .title p.done {
     display: block;
-    width: 400px;
-    color: white;
+    width: 80%;
     font-size: 25px;
-    background-color: #198754;
+    font-weight: bold;
+    color: #006b21;
+    background-color: #86e49d;
     padding: 5px;
     border-radius: 28px;
     text-align: center;
@@ -48,12 +50,12 @@
 }
 .addContent {
     width: 100%;
-    height: calc(100vh - 180px);
+    height: calc(100vh - 100px);
     display: flex;
-    justify-content: center;
     align-items: center;
     flex-direction: column;
-    gap: 40px;
+    gap: 25px;
+    padding-top: 30px;
 }
 .addContent .containerBtn {
     width: 81%;
@@ -62,8 +64,8 @@
     font-size: 25px;
     padding: 7px;
     border: none;
-    cursor: pointer;
     border-radius: 8px;
+    cursor: pointer;
 }
 .closeBtn {
     position: absolute;
@@ -94,13 +96,9 @@
     padding: 7px;
     border-radius: 8px;
 }
+
 @media(max-width: 767px) {
     .addContainer {
         width: 90%;
-        height: 300px;
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        flex-direction: column;
     }
 }
