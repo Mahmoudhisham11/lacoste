@@ -1,53 +1,68 @@
-"use client"; 
+"use client";
 import styles from "./styles.module.css";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import logo from "../../../public/images/logo.png"
 import { IoHomeSharp } from "react-icons/io5";
 import { SiHomeassistantcommunitystore } from "react-icons/si";
 import { MdOutlinePointOfSale } from "react-icons/md";
-import { FaToiletPaper } from "react-icons/fa";
-import { BsPersonLinesFill } from "react-icons/bs";
-import { IoIosCloseCircle } from "react-icons/io";
+import { FaUsers } from "react-icons/fa";
+import { RiNewspaperLine } from "react-icons/ri";
+import { TbZoomMoney } from "react-icons/tb";
+import { useEffect, useState } from "react";
 
 function Nav({openNav, setOpenNav}) {
-    const handleCloseNav = () => {
-        setOpenNav(false)
-    }
-    return (
+    const [hiddenLogo, setHiddenLogo] = useState(true)
+    useEffect(() => {
+        if(openNav) {
+            setHiddenLogo(false)
+        }else {
+            setHiddenLogo(true)
+        }
+    }, [hiddenLogo, openNav])
+    return(
         <nav className={openNav ? `${styles.nav} ${styles.open}` : `${styles.nav}`}>
-            <button onClick={handleCloseNav} className={styles.closeBtn}><IoIosCloseCircle/></button>
             <div className={styles.title}>
-                <Image src={logo} className={styles.logo} alt="logo-image"/>
+                <Image src={logo} className={hiddenLogo ? `${styles.logo} ${styles.hide}`: `${styles.logo}`} alt="logo_image" />
             </div>
-            <div className={styles.linkContainer}>
-                <ul>
-                    <li>
-                        <Link href="/" className={styles.navLink}>
-                            <span><MdOutlinePointOfSale/></span>
-                            <span>المبيعات</span>
-                        </Link>
-                    </li>
-                    <li>
-                        <Link href="/Stock" className={styles.navLink}>
-                            <span><SiHomeassistantcommunitystore/></span>
-                            <span>المخزن</span>
-                        </Link>
-                    </li>
-                    <li>
-                        <Link href="/Users" className={styles.navLink}>
-                            <span><BsPersonLinesFill/></span>
-                            <span>العملاء</span>
-                        </Link>
-                    </li>
-                    <li>
-                        <Link href="/" className={styles.navLink}>
-                            <span><FaToiletPaper/></span>
-                            <span>الفواتير</span>
-                        </Link>
-                    </li>
-                </ul>
-            </div>
+            <ul className={styles.ul}>
+                <li>
+                    <Link href="/" className={styles.navLinks}>
+                        <span><IoHomeSharp /></span>
+                        <span>الصفحة الرئيسية</span>
+                    </Link>
+                </li>
+                <li>
+                    <Link href="/" className={styles.navLinks}>
+                        <span><MdOutlinePointOfSale /></span>
+                        <span>المبيعات</span>
+                    </Link>
+                </li>
+                <li>
+                    <Link href="/" className={styles.navLinks}>
+                        <span><SiHomeassistantcommunitystore/></span>
+                        <span>المخزن</span>
+                    </Link>
+                </li>
+                <li>
+                    <Link href="/" className={styles.navLinks}>
+                        <span><FaUsers /></span>
+                        <span>العملاء</span>
+                    </Link>
+                </li>
+                <li>
+                    <Link href="/" className={styles.navLinks}>
+                        <span><RiNewspaperLine /></span>
+                        <span>الفواتير</span>
+                    </Link>
+                </li>
+                <li>
+                    <Link href="/" className={styles.navLinks}>
+                        <span><TbZoomMoney /></span>
+                        <span>الجرد</span>
+                    </Link>
+                </li>
+            </ul>
         </nav>
     )
 }

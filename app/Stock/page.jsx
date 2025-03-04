@@ -1,164 +1,117 @@
 "use client";
-import { useEffect, useState } from "react";
 import Nav from "../components/Nav/page";
 import styles from "./styles.module.css";
-import { IoMdCloseCircle } from "react-icons/io";
-import { IoSaveSharp } from "react-icons/io5";
-import { HiMiniBars3BottomRight } from "react-icons/hi2";
+import Link from "next/link";
+import { useEffect, useState } from "react";
+import { FaSearch } from "react-icons/fa";
+import { FaBars } from "react-icons/fa";
+import { FaPlusCircle } from "react-icons/fa";
+import { FaRegTrashCan } from "react-icons/fa6";
+import { FaPen } from "react-icons/fa";
+import { IoIosCloseCircle } from "react-icons/io";
 import { db } from "../firebase";
-import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
 
 function Stock() {
-    const [addContainer, setAddContainer] = useState(false)
-    const [updateBtn, setUpdateBtn] = useState(false)
     const [openNav, setOpenNav] = useState(false)
-    const [done, setDone] = useState(false)
+    const [openMenu, setOpenMenu] = useState(false)
     const [name, setName] = useState('')
-    const [price, setprice] = useState(0)
-    const [gomla, setGomla] = useState(0)
-    const [qty, setQty] = useState(0)
-    const [id, setId] = useState('')
+    const [price, setPrice] = useState('')
+    const [gomla, setGomla] = useState('')
+    const [qty, setQty] = useState('')
+    const [search, setSearch] = useState('')
     const [products, setProducts] = useState([])
-    const [filterd, setFilterd] = useState([])
-    const [searchTerm, setSearchTerm] = useState('')
-    const [title, setTitle] = useState('اضف منتج جديد')
-    const collectiondb = collection(db, "stockProduct")
-    // CONTROL ADDCONTAINER \\
-    const handleOpenAdd = () => {
-        if(updateBtn) {
-            setUpdateBtn(false)
-            setName("")
-            setprice("")
-            setGomla("")
-            setQty("")
+    const stockCollection = collection(db, "stockProducts")
+
+    const handleOpenNav = () => {
+        if(openNav) {
+            setOpenNav(false)
+        }else {
+            setOpenNav(true)
         }
-        setAddContainer(true)
     }
-    const handleCloseAdd = () => {
-        setAddContainer(false)
-        setDone(false)
+    const handleOpenMenu = () => {
+        setOpenMenu(true)
+    }
+    const handleCloseMenu = () => {
+        setOpenMenu(false)
     }
 
-    // ADD PRODUCT FUNCTION \\
-    const handleAddProduct = async () => {
+    // UPLOAD DTAT TO DATABASE
+    const handleAddData = async () => {
         if(name !== "" && price > 0 && gomla > 0 && qty > 0) {
-            await addDoc (collectiondb, {
+            await addDoc(stockCollection, {
                 name,
                 price,
                 gomla,
                 qty,
             })
-            setDone(true)
-            setName('')
-            setprice('')
-            setGomla('')
-            setQty('')
+            alert("تم اضفافة المنتج بنجاج")
+            setName("")
+            setPrice("")
+            setGomla("")
+            setQty("")
         }
     }
 
-    // GET DATA FROM FIRESTORE \\
+    // GET DATA FROM DATABASE
     useEffect(() => {
-        if(searchTerm === "") {
-            const fetchProducts = async () => {
-                const querySnapshot = await getDocs(collectiondb)
+        if(search === "") {
+            const getAllData = async () => {
+                const querySnapshot = await getDocs(stockCollection)
                 const productsList = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id}))
                 setProducts(productsList)
-                setFilterd(productsList)
             }
-            fetchProducts()
+            getAllData()
         }else {
-            const searchdata = async() => {
-                const q = query(collectiondb, where("name", "==", searchTerm))
+            const getFilteredData = async () => {
+                const q = query(stockCollection, where("name", "==", search))
                 const querySnapshot = await getDocs(q)
                 const searchRes = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id}))
                 setProducts(searchRes)
-                setFilterd(searchRes)
             }
-            searchdata()
+            getFilteredData()
         }
+    }, [search, stockCollection])
 
-        if(updateBtn) {
-            setTitle("تعديل المنتج")
-        }else {
-            setTitle("اضف منتج جديد")
-        }
-
-    }, [collectiondb, searchTerm, products, title, updateBtn])
-
-    // DELETE FUNCTION \\
-    const handleDelete = async (id) => {
-        const deleteRes = doc(collectiondb, id)
-        await deleteDoc(deleteRes)
-    }
-
-    // UPDATE FUNCTION \\
-    const handleEdit = async(id,name,price,gomla,qty) => {
-        setAddContainer(true)
-        setUpdateBtn(true)
-        setId(id)
-        setName(name)
-        setprice(price)
-        setGomla(gomla)
-        setQty(qty)
-    }
-    const handleUpdate = async() => {
-        const updateRes = doc(collectiondb, id)
-        await updateDoc(updateRes, {name, price, gomla, qty})
-        setName('')
-        setprice('')
-        setGomla('')
-        setQty('')
-    }
-    
-    const handleOpenNav = () => {
-        setOpenNav(true)
-    }
     return(
-        <main className="main">
+        <div className="main">
             <Nav openNav={openNav} setOpenNav={setOpenNav}/>
-            <div className={addContainer ? `${styles.shadowBox} ${styles.open}` : `${styles.shadowBox}`}>
+            <div className={openMenu ? "shadowBox open" : "shadowBox"}>
                 <div className={styles.addContainer}>
-                    <div className={styles.title}>
-                        <h2>{title}</h2>
-                        <p className={done ? `${styles.done}` : ""}>تمت اضافة المنتج بنجاح</p>
+                    <div className={styles.header}>
+                        <h2>اضف منتج جديد</h2>
+                        <button onClick={handleCloseMenu}><IoIosCloseCircle /></button>
                     </div>
                     <div className={styles.addContent}>
-                        <div className={styles.addInputs}>
-                            <label htmlFor="">اسم المنتج :</label>
+                        <div className={styles.inputContainer}>
+                            <label>اسم المنتج: </label>
                             <input type="text" value={name} onChange={(e) => setName(e.target.value)}/>
                         </div>
-                        <div className={styles.addInputs}>
-                            <label htmlFor=""> سعر المنتج :</label>
-                            <input type="number" value={price} onChange={(e) => setprice(e.target.value)}/>
+                        <div className={styles.inputContainer}>
+                            <label>سعر المنتج : </label>
+                            <input type="number" value={price} onChange={(e) => setPrice(e.target.value)}/>
                         </div>
-                        <div className={styles.addInputs}>
-                            <label htmlFor=""> سعر الجملة :</label>
+                        <div className={styles.inputContainer}>
+                            <label>سعر الجملة  :</label>
                             <input type="number" value={gomla} onChange={(e) => setGomla(e.target.value)}/>
                         </div>
-                        <div className={styles.addInputs}>
-                            <label htmlFor=""> الكمية :</label>
+                        <div className={styles.inputContainer}>
+                            <label>الكمية :</label>
                             <input type="number" value={qty} onChange={(e) => setQty(e.target.value)}/>
                         </div>
-                        {
-                            updateBtn ? 
-                            <button className={styles.containerBtn} onClick={handleUpdate}>تعديل المنتج</button> :
-                            <button className={styles.containerBtn} onClick={handleAddProduct}>اضف المنتج</button> 
-
-                        }
-                        <button className={styles.closeBtn} onClick={handleCloseAdd}><IoMdCloseCircle/></button>
+                        <button onClick={handleAddData}>اضف المنتج</button>
                     </div>
                 </div>
             </div>
             <section className="container">
                 <div className="header">
-                    <h2>
-                        <span>
-                            <button onClick={handleOpenNav}><HiMiniBars3BottomRight/></button>
-                        </span>
-                        <span>صفحة المخزن</span>
-                    </h2>
-                    <div className="inputContainer">
-                        <input list="products" placeholder="ابحث عن المنتج" onChange={(e) => setSearchTerm(e.target.value)} />
+                    <button onClick={handleOpenMenu}>
+                        <span>اضف منتج جديد</span>
+                        <span><FaPlusCircle /></span>
+                    </button>
+                    <div className="searchContainer">
+                        <input list="products" placeholder="بحث" onChange={(e) => setSearch(e.target.value)}/>
                         <datalist id="products">
                             {
                                 products.map(product => {
@@ -168,35 +121,39 @@ function Stock() {
                                 })
                             }
                         </datalist>
-                        <button onClick={handleOpenAdd}>
-                            <span><IoSaveSharp/></span>
-                            <span>اضف منتج جديد</span>
-                        </button> 
+                        <p>| <FaSearch /></p>
                     </div>
+                    <div className="menuBtn">
+                        <button onClick={handleOpenNav}><FaBars /></button>
+                    </div>
+                </div>
+                <div className="title">
+                    <h2>صفحة المخزن</h2>
                 </div>
                 <div className="content">
                     <table>
                         <thead>
                             <tr>
-                                <th>اسم المنتج</th>
+                                <th>الاسم</th>
                                 <th>السعر</th>
-                                <th>سعر الجملة</th>
+                                <th>الجملة</th>
                                 <th>الكمية</th>
-                                <th>تعديلات</th>
+                                <th>التعديلات</th>
                             </tr>
                         </thead>
                         <tbody>
+
                             {
-                                filterd.map(product => {
-                                    return (
+                                products.map(product => {
+                                    return(
                                         <tr key={product.id}>
                                             <td>{product.name}</td>
                                             <td>{product.price}</td>
                                             <td>{product.gomla}</td>
                                             <td>{product.qty}</td>
                                             <td>
-                                                <button onClick={() => handleDelete(product.id)}>حذف</button>
-                                                <button onClick={() => handleEdit(product.id,product.name,product.price,product.gomla,product.qty)}>تعديل</button>
+                                                <button><FaRegTrashCan /></button>
+                                                <button><FaPen /></button>
                                             </td>
                                         </tr>
                                     )
@@ -206,7 +163,7 @@ function Stock() {
                     </table>
                 </div>
             </section>
-        </main>
+        </div>
     )
 }
 

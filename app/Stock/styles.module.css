@@ -1,64 +1,56 @@
-.shadowBox {
-    display: none;
-}
-.shadowBox.open {
-    width: 100%;
-    height: 100vh;
-    position: fixed;
-    top: 0;
-    left: 0;
-    background-color: rgba(0, 0, 0, 0.4);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 1;
-}
 .addContainer {
-    position: relative;
-    width: 80%;
-    height: 550px;
+    width: 90%;
+    min-height: 500px;
     background-color: white;
     border-radius: 8px;
-    overflow: hidden;
 }
-.addContainer .title {
+.header {
+    padding: 20px 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.header h2 {
+    font-size: 35px;
+    color: black;
+}
+.header button {
+    background-color: transparent;
+    border: none;
+    font-size: 30px;
+    color: red;
+}
+.addContent {
     width: 100%;
+    min-height: calc(100vh - 180px);
     display: flex;
     justify-content: center;
     align-items: center;
     flex-direction: column;
     gap: 10px;
-    padding-top: 20px;
 }
-.addContainer .title p {
-    display: none;
-}
-.addContainer .title p.done {
-    display: block;
+.inputContainer {
     width: 80%;
-    font-size: 25px;
-    font-weight: bold;
-    color: #006b21;
-    background-color: #86e49d;
-    padding: 5px;
-    border-radius: 28px;
-    text-align: center;
-}
-.addContainer .title h2 {
-    font-size: 40px;
-    color: black;
-}
-.addContent {
-    width: 100%;
-    height: calc(100vh - 100px);
     display: flex;
+    justify-content: center;
     align-items: center;
     flex-direction: column;
-    gap: 25px;
-    padding-top: 30px;
+    gap: 10px;
 }
-.addContent .containerBtn {
-    width: 81%;
+.inputContainer label {
+    width: 100%;
+    font-size: 25px;
+    color: black;
+}
+.inputContainer input {
+    width: 100%;
+    border: 1px solid black;
+    border-radius: 8px;
+    outline: none;
+    padding: 7px;
+}
+.addContent button {
+    width: 80%;
     background-color: black;
     color: white;
     font-size: 25px;
@@ -67,38 +59,12 @@
     border-radius: 8px;
     cursor: pointer;
 }
-.closeBtn {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background-color: transparent;
-    border: none;
-    color: red;
-    font-size: 25px;
-    cursor: pointer;
-}
-.addInputs {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-}
-.addInputs label {
-    width: 80%;
-    font-size: 25px;
-    color: black;
-}
-.addInputs input {
-    width: 80%;
-    outline: none;
-    border: 2px solid black;
-    padding: 7px;
-    border-radius: 8px;
-}
 
 @media(max-width: 767px) {
-    .addContainer {
-        width: 90%;
+    .header h2 {
+        font-size: 20px;
+    }
+    .header button {
+        font-size: 20px;
     }
 }
