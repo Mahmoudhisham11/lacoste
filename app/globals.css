@@ -139,6 +139,7 @@ body {
     width: 100%;
     display: flex;
     justify-content: center;
+    align-items: center;
     overflow: hidden;
 }
 table {
@@ -224,6 +225,9 @@ tbody tr td:last-child button:last-child {
     .searchContainer {
         width: 200px;
     }
+    .menuBtn button {
+        font-size: 20px;
+    }
     .headerLink {
         width: 70px;
         font-size: 18px;
@@ -237,13 +241,13 @@ tbody tr td:last-child button:last-child {
         font-size: 30px;
     }
     thead th {
-        font-size: 20px;
+        font-size: 13px;
     }
     tbody tr {
-        font-size: 15px;
+        font-size: 11px;
     }
     tbody tr td:last-child button {
-        font-size: 15px;
+        font-size: 11px;
         border-radius: 50%;
     }
 }

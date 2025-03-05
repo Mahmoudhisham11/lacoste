@@ -141,8 +141,7 @@ function Stock() {
                                 <th>التعديلات</th>
                             </tr>
                         </thead>
-                        <tbody>
-
+                        <tbody> 
                             {
                                 products.map(product => {
                                     return(
