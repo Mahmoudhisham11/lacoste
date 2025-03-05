@@ -33,19 +33,19 @@ function Nav({openNav, setOpenNav}) {
                     </Link>
                 </li>
                 <li>
-                    <Link href="/" className={styles.navLinks}>
+                    <Link href="/Sales" className={styles.navLinks}>
                         <span><MdOutlinePointOfSale /></span>
                         <span>المبيعات</span>
                     </Link>
                 </li>
                 <li>
-                    <Link href="/" className={styles.navLinks}>
+                    <Link href="/Stock" className={styles.navLinks}>
                         <span><SiHomeassistantcommunitystore/></span>
                         <span>المخزن</span>
                     </Link>
                 </li>
                 <li>
-                    <Link href="/" className={styles.navLinks}>
+                    <Link href="/Users" className={styles.navLinks}>
                         <span><FaUsers /></span>
                         <span>العملاء</span>
                     </Link>

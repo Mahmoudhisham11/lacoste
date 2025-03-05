@@ -10,15 +10,18 @@ import { FaRegTrashCan } from "react-icons/fa6";
 import { FaPen } from "react-icons/fa";
 import { IoIosCloseCircle } from "react-icons/io";
 import { db } from "../firebase";
-import { addDoc, collection, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection, deleteDoc, doc, getDocs, query, updateDoc, where } from "firebase/firestore";
 
 function Stock() {
     const [openNav, setOpenNav] = useState(false)
     const [openMenu, setOpenMenu] = useState(false)
+    const [update, setUpdate] = useState(false)
+    const [headerTitle, setHaderTitle] = useState('اضف منتج جديد')
     const [name, setName] = useState('')
     const [price, setPrice] = useState('')
     const [gomla, setGomla] = useState('')
     const [qty, setQty] = useState('')
+    const [id, setId] = useState('')
     const [search, setSearch] = useState('')
     const [products, setProducts] = useState([])
     const stockCollection = collection(db, "stockProducts")
@@ -32,6 +35,12 @@ function Stock() {
     }
     const handleOpenMenu = () => {
         setOpenMenu(true)
+        setHaderTitle("اضف منتج جديد")
+        setUpdate(false)
+        setName("")
+        setPrice("")
+        setGomla("")
+        setQty("")
     }
     const handleCloseMenu = () => {
         setOpenMenu(false)
@@ -40,18 +49,58 @@ function Stock() {
     // UPLOAD DTAT TO DATABASE
     const handleAddData = async () => {
         if(name !== "" && price > 0 && gomla > 0 && qty > 0) {
-            await addDoc(stockCollection, {
-                name,
-                price,
-                gomla,
-                qty,
-            })
-            alert("تم اضفافة المنتج بنجاج")
-            setName("")
-            setPrice("")
-            setGomla("")
-            setQty("")
+            const q = query(stockCollection, where("name", "==", name))
+            const querySnapshot = await getDocs(q)
+            if(!querySnapshot.empty) {
+                alert("هذا المنتج موجود بالفعل")
+            }else {
+                await addDoc(stockCollection, {
+                    name,
+                    price,
+                    gomla,
+                    qty,
+                })
+                alert("تم اضفافة المنتج بنجاج")
+                setName("")
+                setPrice("")
+                setGomla("")
+                setQty("")
+            }
         }
+    }
+
+    // DELETE PRODUCT FROM DATABASE
+    const handleDelete = async(id) => {
+        const delValue = doc(stockCollection, id)
+        await deleteDoc(delValue)
+    }
+
+    // EDIT PRODUCT FROM DATABASE
+    const handleEdit = (name, price, gomla, qty, id) => {
+        setOpenMenu(true)
+        setHaderTitle("تعديل المنتج")
+        setUpdate(true)
+        setName(name)
+        setPrice(price)
+        setGomla(gomla)
+        setQty(qty)
+        setId(id)
+    }
+    // UPDATE PRODUCT FROM DATABASE
+    const handleUpdate = async() => {
+        const updateVal = doc(stockCollection, id)
+        await updateDoc(updateVal, {
+            name,
+            price,
+            gomla,
+            qty
+        })
+        alert("تم تعديل المنتج بنجاج")
+        setName("")
+        setPrice("")
+        setGomla("")
+        setQty("")
+        
     }
 
     // GET DATA FROM DATABASE
@@ -80,7 +129,7 @@ function Stock() {
             <div className={openMenu ? "shadowBox open" : "shadowBox"}>
                 <div className={styles.addContainer}>
                     <div className={styles.header}>
-                        <h2>اضف منتج جديد</h2>
+                        <h2>{headerTitle}</h2>
                         <button onClick={handleCloseMenu}><IoIosCloseCircle /></button>
                     </div>
                     <div className={styles.addContent}>
@@ -100,7 +149,7 @@ function Stock() {
                             <label>الكمية :</label>
                             <input type="number" value={qty} onChange={(e) => setQty(e.target.value)}/>
                         </div>
-                        <button onClick={handleAddData}>اضف المنتج</button>
+                        {update ? <button onClick={handleUpdate}>تعديل المنتج</button> : <button onClick={handleAddData}>اضف المنتج</button>}
                     </div>
                 </div>
             </div>
@@ -151,8 +200,8 @@ function Stock() {
                                             <td>{product.gomla}</td>
                                             <td>{product.qty}</td>
                                             <td>
-                                                <button><FaRegTrashCan /></button>
-                                                <button><FaPen /></button>
+                                                <button onClick={() => handleDelete(product.id)}><FaRegTrashCan /></button>
+                                                <button onClick={() => handleEdit(product.name, product.price, product.gomla, product.qty, product.id)}><FaPen /></button>
                                             </td>
                                         </tr>
                                     )
