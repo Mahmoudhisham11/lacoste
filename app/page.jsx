@@ -4,13 +4,17 @@ import Link from "next/link";
 import Nav from "./components/Nav/page";
 import { FaSearch } from "react-icons/fa";
 import { FaBars } from "react-icons/fa";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CiMoneyBill } from "react-icons/ci";
 import { FaUsers } from "react-icons/fa";
 import { RiNewspaperLine } from "react-icons/ri";
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "./firebase";
 
 function Home() {
     const [openNav, setOpenNav] = useState(false)
+    const [users, setUsers] = useState([])
+
     const handleOpenNav = () => {
         if(openNav) {
             setOpenNav(false)
@@ -18,6 +22,15 @@ function Home() {
             setOpenNav(true)
         }
     }
+    useEffect(() => {
+        const getAllUsers = async() => {
+            const usersCollection = collection(db, 'users')
+            const querySnapshot = await getDocs(usersCollection)
+            const usersList = querySnapshot.docs.map(doc => ({...doc.data(), id: doc.id}))
+            setUsers(usersList)
+        }
+        getAllUsers()
+    }, [])
     return (
         <main className="main">
             <Nav openNav={openNav} setOpenNav={setOpenNav}/>
@@ -47,7 +60,7 @@ function Home() {
                     </div>
                     <div className="card">
                         <div className="cardInfo">
-                            <p>50</p>
+                            <p>{users.length}</p>
                             <p>العملاء</p>
                         </div>
                         <div className="cardIcon">

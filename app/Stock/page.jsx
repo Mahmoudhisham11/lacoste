@@ -200,8 +200,8 @@ function Stock() {
                                             <td>{product.gomla}</td>
                                             <td>{product.qty}</td>
                                             <td>
-                                                <button onClick={() => handleDelete(product.id)}><FaRegTrashCan /></button>
-                                                <button onClick={() => handleEdit(product.name, product.price, product.gomla, product.qty, product.id)}><FaPen /></button>
+                                                <button className="delBtn" onClick={() => handleDelete(product.id)}><FaRegTrashCan /></button>
+                                                <button className="addBtn" onClick={() => handleEdit(product.name, product.price, product.gomla, product.qty, product.id)}><FaPen /></button>
                                             </td>
                                         </tr>
                                     )

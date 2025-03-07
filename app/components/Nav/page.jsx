@@ -33,7 +33,7 @@ function Nav({openNav, setOpenNav}) {
                     </Link>
                 </li>
                 <li>
-                    <Link href="/Sales" className={styles.navLinks}>
+                    <Link href="/Sale" className={styles.navLinks}>
                         <span><MdOutlinePointOfSale /></span>
                         <span>المبيعات</span>
                     </Link>

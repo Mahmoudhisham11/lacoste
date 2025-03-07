@@ -189,13 +189,16 @@ tbody tr td:last-child button {
     align-items: center;
     cursor: pointer;
 }
-tbody tr td:last-child button:first-child {
+.delBtn {
     color: whitesmoke;
     background-color: #d30021;
 }
-tbody tr td:last-child button:last-child {
+.addBtn {
     color: whitesmoke;
     background-color: #132ECC;
+}
+tfoot {
+    background-color: gray;
 }
 .shadowBox {
     display: none;
@@ -245,6 +248,9 @@ tbody tr td:last-child button:last-child {
     }
     tbody tr {
         font-size: 11px;
+    }
+    tbody tr input {
+        width: 30px;
     }
     tbody tr td:last-child button {
         font-size: 11px;

@@ -162,8 +162,8 @@ function Users() {
                                         <td>{user.userName}</td>
                                         <td>{user.phone}</td>
                                         <td>
-                                            <button onClick={() => handleDelete(user.id)}><FaRegTrashCan /></button>
-                                            <button onClick={() => handleEdit(user.userName, user.phone, user.id)}><FaPen /></button>
+                                            <button className="delBtn" onClick={() => handleDelete(user.id)}><FaRegTrashCan /></button>
+                                            <button className="addBtn" onClick={() => handleEdit(user.userName, user.phone, user.id)}><FaPen /></button>
                                         </td>
                                     </tr>
                                 )
