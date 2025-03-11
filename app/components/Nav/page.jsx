@@ -51,13 +51,13 @@ function Nav({openNav, setOpenNav}) {
                     </Link>
                 </li>
                 <li>
-                    <Link href="/" className={styles.navLinks}>
+                    <Link href="Resete" className={styles.navLinks}>
                         <span><RiNewspaperLine /></span>
                         <span>الفواتير</span>
                     </Link>
                 </li>
                 <li>
-                    <Link href="/" className={styles.navLinks}>
+                    <Link href="/Gard" className={styles.navLinks}>
                         <span><TbZoomMoney /></span>
                         <span>الجرد</span>
                     </Link>

@@ -1,0 +1,64 @@
+.content {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+.card {
+    width: 90%;
+    min-height: 300px;
+    padding: 30px 10px;
+    background-color: white;
+    border-radius: 8px;
+    transition: .3s;
+}
+.card:hover {
+    box-shadow: 0 15px 15px rgba(0, 0, 0, 0.5);
+}
+.cardTitle {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex-direction: column;
+    gap: 10px;
+}
+.cardTitle p {
+    color: black;
+    font-size: 20px;
+}
+.logo {
+    width: 400px;
+    height: 200px;
+}
+.cardInfo {
+    width: 100%;
+    padding: 10px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.cardInfo p {
+    color: black;
+    font-size: 20px;
+}
+.productsTable {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+.productsTable table {
+    width: 100%;
+    border: 2px solid black;
+}
+
+@media(max-width: 767px) {
+    .logo {
+        width: 150px;
+        height: 100px;
+    }
+}

@@ -8,8 +8,9 @@ import { FaPlusCircle } from "react-icons/fa";
 import { FaRegTrashCan } from "react-icons/fa6";
 import { IoSaveSharp } from "react-icons/io5";
 import { IoIosCloseCircle } from "react-icons/io";
-import { collection, getDocs, query, where } from "firebase/firestore";
+import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { db } from "../firebase";
+import { useRouter } from "next/navigation";
 
 function Sale() {
     const [openNav, setOpenNav] = useState(false)
@@ -18,9 +19,11 @@ function Sale() {
     const [phone, setPhone] = useState('')
     const [search, setSearch] = useState('')
     const [total, setTotal] = useState("")
+    const [discount, setDiscount] = useState(0)
     const [qty, setQty] = useState({})
     const [products, setProducts] = useState([])
     const [filtered, setFiltered] = useState([])
+    const router = useRouter()
     const stockCollection = collection(db, "stockProducts")
 
     const handleOpenNav = () => {
@@ -66,7 +69,7 @@ function Sale() {
             return acc + (Number(qty[product.id]?.itemQty || 1) * Number(product.price))
         }, 0)
         setTotal(totalPrice)
-    }, [search, stockCollection, qty, filtered])
+    }, [search, stockCollection, qty])
 
     // SET QTY FOR PRODUCTS
     const handleQtyChange = (id, value) => {
@@ -79,13 +82,74 @@ function Sale() {
         console.log(qty)
     }
 
+    // HANDLE RESETE 
+    const handleResete = async() => {
+        const cartCollection = collection(db, "cart")
+        const reseteCollection = collection(db, "resete")
+        const gardCollection = collection(db, "gard")
+        const usersCollection = collection(db, "users")
+        if(userName !== "" && phone !== "") {
+            // ADD PRODUCTS TO CART
+            await addDoc(cartCollection, {
+                userName,
+                phone,
+                total: Number(total) - Number(discount),
+                discount,
+                products: filtered.map(item => ({...item, qty: qty[item.id]?.itemQty || 1, totalPrice: (qty[item.id]?.itemQty || 1 ) * Number(item.price)})),
+            })
+            // ADD PRODUCTS TO RESETE COLLECTION
+            await addDoc(reseteCollection, {
+                userName,
+                phone,
+                total: Number(total) - Number(discount),
+                discount,
+                products: filtered.map(item => ({...item, qty: qty[item.id]?.itemQty || 1, totalPrice: (qty[item.id]?.itemQty || 1 ) * Number(item.price)})),
+            })
+            // ADD PRODUCTS TO GARD COLLECTION
+            await addDoc(gardCollection, {
+                userName,
+                phone,
+                total: Number(total) - Number(discount),
+                discount,
+                products: filtered.map(item => ({...item, qty: qty[item.id]?.itemQty || 1, totalPrice: (qty[item.id]?.itemQty || 1 ) * Number(item.price)})),
+            })
+            // ADD USER TO USERS COLLECTION
+            const q = query(usersCollection, where("userName", "==", userName))
+            const querySnapshot = await getDocs(q)
+            if(!querySnapshot.empty) {
+                console.log("User is already exsist")
+            }else {
+                await addDoc(usersCollection, {userName, phone})
+            }
+            alert('تم حفظ الفاتورة')
+            setUserName('')
+            setPhone('')
+            setDiscount(0)
+            router.push("/Print")
+        }
+        // FILTER THE STOCK
+        for(const product of filtered) {
+            const productRef = doc(db, "stockProducts", product.id)
+            const productSnapshot = await getDoc(productRef)
+            const stockQty = Math.abs(productSnapshot.data()?.qty || 0)
+            let productQty = Math.abs(qty[product.id]?.itemQty || 0)
+            if(productQty > stockQty) {
+                console.log(`لا توج كمية كافية من ${product.name} الكمية المتاحة ${stockQty}`)
+                continue;
+            }
+            const newStockQty = Math.max(0, stockQty - productQty)
+            await updateDoc(productRef, {qty: newStockQty})
+        }
+
+    }
+
     return(
         <div className="main">
             <Nav openNav={openNav} setOpenNav={setOpenNav}/>
             <div className={openMenu ? "shadowBox open" : "shadowBox"}>
                 <div className={styles.addContainer}>
                     <div className={styles.header}>
-                        <h2>اضف بيانات العميل</h2>
+                        <h2>حفظ الفاتورة</h2>
                         <button onClick={handleCloseMenu}><IoIosCloseCircle /></button>
                     </div>
                     <div className={styles.addContent}>
@@ -97,7 +161,11 @@ function Sale() {
                             <label> رقم الهاتف : </label>
                             <input type="number" value={phone} onChange={(e) => setPhone(e.target.value)}/>
                         </div>
-                        <button>اضف بيانات العميل</button>
+                        <div className={styles.inputContainer}>
+                            <label> الخصم : </label>
+                            <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value)}/>
+                        </div>
+                        <button onClick={handleResete}>حفظ الفاتورة</button>
                     </div>
                 </div>
             </div>
