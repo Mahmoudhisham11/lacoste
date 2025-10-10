@@ -1,0 +1,25 @@
+.customers {
+    width: 100%;
+    min-height: 100vh;
+    display: flex;
+    justify-content: start;
+    align-items: start;
+}
+.content {
+    width: 100%;
+    padding: 15px 1%;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+.searchBox {
+    width: 100%;
+}
+.tableContainer {
+    width: 100%;
+}
+@media(max-width: 767px) {
+    .tableContainer {
+        overflow: scroll;
+    }
+}
