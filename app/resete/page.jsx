@@ -89,6 +89,7 @@ function Resete() {
         <p>عدد الاصناف:<span style={{border: '2px solid black', padding: "5px"}}>{invoice.lenth}</span></p>
         <p>العنوان: الخصوص شارع القسم بجوار محل دلوعة</p>
         <p style={{ textAlign: 'center', marginTop: '5px'}}>رقم الهاتف: 01113306404</p>
+        <p style={{ textAlign: 'center', marginTop: '5px'}}>رقم الكاش: 01095164379</p>
         <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
       </div>
 
