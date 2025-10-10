@@ -42,7 +42,7 @@ function Resete() {
     <div className={styles.resete}>
       <div className={styles.title}>
         <button onClick={() => router.push('/')} className={styles.btnBack}>رجوع</button>
-        <h2>اسكرينا</h2>
+        <h2>Lacoste</h2>
         <div className={styles.imageContainer}>
           <Image src={resetImage} fill style={{ objectFit: 'cover' }} alt="logo" />
         </div>
@@ -87,8 +87,8 @@ function Resete() {
         <p>المدفوع: {invoice.total}$</p>
         <p>المتبقي: 0.0</p>
         <p>عدد الاصناف:<span style={{border: '2px solid black', padding: "5px"}}>{invoice.lenth}</span></p>
-        <p>العنوان: الخصوص الشارع العمومي امام قسم الخصوص</p>
-        <p style={{ textAlign: 'center', marginTop: '5px'}}>رقم الهاتف: 01113865582</p>
+        <p>العنوان: الخصوص شارع القسم بجوار محل دلوعة</p>
+        <p style={{ textAlign: 'center', marginTop: '5px'}}>رقم الهاتف: 01113306404</p>
         <p style={{ textAlign: 'center', marginTop: '5px'}}>شكراً لتعاملكم معنا!</p>
       </div>
 
