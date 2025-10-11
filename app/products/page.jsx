@@ -299,7 +299,7 @@ function Products() {
               align-items: center;
               font-size: 7pt;
             }
-            svg.barcode { width: 35mm; height: 10mm; }
+            svg.barcode { width: 35mm; height: 3mm; }
             .barcode rect, .barcode path { shape-rendering: crispEdges; }
           </style>
         </head>
