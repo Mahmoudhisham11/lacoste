@@ -304,7 +304,6 @@ function Products() {
           <div class="label">
             <div class="name">${product.name ?? ''}</div>
             <div class="content">
-              <div><strong>سعر البيع:</strong> ${product.sellPrice ?? ''} EGP</div>
               <div><strong>الكود:</strong> ${product.code ?? ''}</div>
             </div>
           </div>
