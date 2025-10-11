@@ -313,19 +313,7 @@ function Products() {
             <svg id="barcode" class="barcode"></svg>
           </div>
 
-          <script>
-            window.onload = function () {
-              JsBarcode("#barcode", "${'${product.code}'}", {
-                format: "CODE128",
-                displayValue: false,
-                margin: 0
-              });
-              setTimeout(() => {
-                window.print();
-                window.onafterprint = () => window.close();
-              }, 100);
-            };
-          </script>
+          
         </body>
       </html>
     `;
