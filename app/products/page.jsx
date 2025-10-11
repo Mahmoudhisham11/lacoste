@@ -257,56 +257,66 @@ function Products() {
 const handlePrintLabel = (product) => {
   const printWindow = window.open('', '', 'width=400,height=300');
   const htmlContent = `
-    <html>
+    <html dir="rtl">
       <head>
         <meta charset="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
         <style>
-          @page {
-            size: 38mm 25mm;
-            margin: 1mm 0 1mm 0; /* مسافة بسيطة فوق وتحت */
+          @media print {
+            @page {
+              size: 38mm 25mm portrait;
+              margin: 0;
+            }
+            body {
+              margin: 0;
+              padding: 0;
+              width: 38mm;
+              height: 25mm;
+              overflow: hidden;
+            }
           }
+
           body {
-            margin: 0;
-            padding: 0;
             width: 38mm;
             height: 25mm;
-            overflow: hidden;
             display: flex;
             justify-content: center;
             align-items: center;
+            margin: 0;
+            padding: 0;
+            background: white;
           }
+
           .label {
-            width: 36mm;
-            height: 23mm;
-            padding: 1mm;
+            width: 38mm;
+            height: 25mm;
+            box-sizing: border-box;
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             font-family: Arial, sans-serif;
-            font-size: 7pt;
-            box-sizing: border-box;
+            font-size: 8pt;
             text-align: center;
-            gap: 1mm;
-            page-break-after: always; /* ضروري لضبط كل استيكر في صفحة */
+            overflow: hidden;
+            page-break-after: always;
+            padding-bottom: 3mm; /* ✅ فراغ يمنع تداخل الاستيكرات */
           }
+
           .name {
             font-weight: bold;
-            font-size: 8pt;
+            font-size: 7pt;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
             max-width: 100%;
           }
-          .content {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.5mm;
+
+          .price {
             font-size: 7pt;
           }
+
           svg.barcode {
             width: 30mm;
             height: 8mm;
@@ -316,10 +326,7 @@ const handlePrintLabel = (product) => {
       <body>
         <div class="label">
           <div class="name">${product.name ?? ''}</div>
-          <div class="content">
-            <div>السعر: ${product.sellPrice ?? ''} ج</div>
-            <div>الكود: ${product.code ?? ''}</div>
-          </div>
+          <div class="price">السعر: ${product.sellPrice ?? ''} EGP</div>
           <svg id="barcode" class="barcode"></svg>
         </div>
 
@@ -328,12 +335,12 @@ const handlePrintLabel = (product) => {
             JsBarcode("#barcode", "${product.code}", {
               format: "CODE128",
               displayValue: false,
-              margin: 0
+              margin: 0,
             });
             setTimeout(() => {
               window.print();
               window.onafterprint = () => window.close();
-            }, 300);
+            }, 200);
           };
         </script>
       </body>
