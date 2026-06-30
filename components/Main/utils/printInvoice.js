@@ -44,8 +44,8 @@ export const printInvoice = (invoice) => {
       margin-bottom: 8px;
     }
     .header img {
-      width: 80px;
-      height: 50px;
+      width: 140px;
+      height: 90px;
       object-fit: contain;
       margin-bottom: 4px;
     }

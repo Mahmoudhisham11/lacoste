@@ -1,6 +1,6 @@
 "use client";
 import styles from "../styles.module.css";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { getAvailableQuantity } from "@/utils/productHelpers";
 import { useNotification } from "@/contexts/NotificationContext";
 import dataReader from "@/lib/DataReader";
@@ -14,28 +14,36 @@ export default function VariantModal({
 }) {
   const { error: showError } = useNotification();
   const [selectedColor, setSelectedColor] = useState("");
-  const [sizeMap, setSizeMap] = useState({});
+  const [colorSizeMap, setColorSizeMap] = useState({});
   const [price, setPrice] = useState(0);
+  const cartRef = useRef(cart);
+  cartRef.current = cart;
 
   useEffect(() => {
     if (product) {
       setPrice(product.sellPrice ?? product.finalPrice ?? 0);
-      const firstColor =
-        product.colors && product.colors.length
-          ? product.colors[0].color
-          : "";
-      setSelectedColor(firstColor);
+      const colors = product.colors || [];
+      const firstColor = colors.length ? colors[0].color : "";
 
-      const initMap = {};
-      if (product.colors && product.colors.length && firstColor) {
-        const colorObj = product.colors.find((c) => c.color === firstColor);
-        if (colorObj && Array.isArray(colorObj.sizes)) {
-          colorObj.sizes.forEach((sz) => (initMap[sz.size] = 0));
-        }
-      } else if (product.sizes && product.sizes.length) {
-        product.sizes.forEach((sz) => (initMap[sz.size] = 0));
+      // Build sizeMap for ALL colors so switching is seamless
+      const fullMap = {};
+      colors.forEach((c) => {
+        const sizes = c.sizes || [];
+        fullMap[c.color] = {};
+        sizes.forEach((sz) => {
+          fullMap[c.color][sz.size] = fullMap[c.color][sz.size] || 0;
+        });
+      });
+      // Handle products without colors (just sizes)
+      if (!colors.length && product.sizes) {
+        fullMap[""] = {};
+        product.sizes.forEach((sz) => {
+          fullMap[""][sz.size] = 0;
+        });
       }
-      setSizeMap(initMap);
+
+      setColorSizeMap(fullMap);
+      setSelectedColor(firstColor);
     }
   }, [product]);
 
@@ -43,31 +51,47 @@ export default function VariantModal({
 
   const handleColorSelect = (color) => {
     setSelectedColor(color);
-    const map = {};
-    const colorObj = product.colors?.find((c) => c.color === color);
-    if (colorObj && Array.isArray(colorObj.sizes)) {
-      colorObj.sizes.forEach((s) => (map[s.size] = 0));
-    }
-    setSizeMap(map);
+  };
+
+  const updateQty = (color, size, value) => {
+    setColorSizeMap((prev) => {
+      const next = { ...prev };
+      if (!next[color]) next[color] = {};
+      next[color] = { ...next[color], [size]: Math.max(0, Number(value || 0)) };
+      return next;
+    });
+  };
+
+  const collectAllEntries = () => {
+    const entries = [];
+    Object.entries(colorSizeMap).forEach(([color, sizes]) => {
+      Object.entries(sizes).forEach(([size, qty]) => {
+        if (Number(qty) > 0) {
+          entries.push({ color, size, qty: Number(qty) });
+        }
+      });
+    });
+    return entries;
   };
 
   const proceedWithAdd = async (priceNum) => {
-    const entries = Object.entries(sizeMap)
-      .map(([size, qty]) => ({ size, qty: Number(qty || 0) }))
-      .filter((e) => e.qty > 0);
+    const allEntries = collectAllEntries();
 
-    if (!entries.length) {
+    if (!allEntries.length) {
       showError("اختر كمية على الأقل لمقاس واحد");
       return;
     }
 
-    for (const e of entries) {
-      const available = getAvailableQuantity(product, selectedColor, e.size);
+    // Check all entries upfront with current cart to avoid stale-data issues
+    const currentCart = cartRef.current;
 
-      const existingInCart = cart
+    for (const e of allEntries) {
+      const available = getAvailableQuantity(product, e.color, e.size);
+
+      const existingInCart = currentCart
         .filter(item =>
           item.originalProductId === product.id &&
-          (item.color || "") === (selectedColor || "") &&
+          (item.color || "") === (e.color || "") &&
           (item.size || "") === (e.size || "")
         )
         .reduce((sum, item) => sum + (item.quantity || 0), 0);
@@ -77,15 +101,19 @@ export default function VariantModal({
         const canAdd = available - existingInCart;
         showError(
           `⚠️ الكمية المطلوبة للمقاس ${e.size} (${totalRequested}) أكبر من المتاح (${available})\n` +
+          `اللون: ${e.color}\n` +
           `الكمية في السلة: ${existingInCart}\n` +
           `الكمية المتاحة: ${available}\n` +
           `يمكن إضافة: ${canAdd > 0 ? canAdd : 0}`
         );
         return;
       }
+    }
 
+    // All checks passed — add all entries
+    for (const e of allEntries) {
       await onAddToCart(product, {
-        color: selectedColor,
+        color: e.color,
         size: e.size,
         quantity: e.qty,
         price: priceNum,
@@ -122,14 +150,17 @@ export default function VariantModal({
     await proceedWithAdd(priceNum);
   };
 
-  const sizesArr = selectedColor
+  const colors = product.colors || [];
+  const hasColors = colors.length > 0;
+  const noColorKey = "";
+
+  // Sizes to display for the currently selected color (or global sizes if no colors)
+  const sizesArr = hasColors
     ? (() => {
-        const colorObj = product.colors?.find((c) => c.color === selectedColor);
-        return colorObj && Array.isArray(colorObj.sizes) && colorObj.sizes.length
-          ? colorObj.sizes
-          : product.sizes || [];
+        const co = colors.find((c) => c.color === selectedColor);
+        return co && co.sizes ? co.sizes : [];
       })()
-    : [];
+    : product.sizes || [];
 
   return (
     <div className={styles.popupOverlay} onClick={onClose}>
@@ -137,11 +168,11 @@ export default function VariantModal({
         <h3>اختر اللون والمقاسات — {product.name}</h3>
 
         <div className={styles.popupBoxContent}>
-          {product.colors && product.colors.length > 0 && (
+          {hasColors && (
             <div>
               <label>الألوان المتاحة:</label>
               <div className={styles.colorButtons}>
-                {product.colors.map((c, idx) => (
+                {colors.map((c, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleColorSelect(c.color)}
@@ -164,7 +195,7 @@ export default function VariantModal({
           )}
 
           <div>
-            <label>المقاسات للون: {selectedColor || "—"}</label>
+            <label>المقاسات للون: {hasColors ? selectedColor || "—" : "الكل"}</label>
             <div className={styles.sizesContainer}>
               {sizesArr.length === 0 ? (
                 <div className={styles.emptyMessage}>
@@ -179,7 +210,10 @@ export default function VariantModal({
                     selectedColor,
                     s.size
                   );
-                  const current = Number(sizeMap[s.size] || 0);
+                  const colorKey = hasColors ? selectedColor : noColorKey;
+                  const current = Number(
+                    (colorSizeMap[colorKey] || {})[s.size] || 0
+                  );
 
                   return (
                     <div key={si} className={styles.sizeRow}>
@@ -191,10 +225,7 @@ export default function VariantModal({
                         <div className={styles.qtyControls}>
                           <button
                             onClick={() =>
-                              setSizeMap((prev) => ({
-                                ...prev,
-                                [s.size]: Math.max(0, Number(prev[s.size] || 0) - 1),
-                              }))
+                              updateQty(colorKey, s.size, current - 1)
                             }
                           >
                             -
@@ -204,20 +235,22 @@ export default function VariantModal({
                             value={current}
                             onChange={(e) => {
                               const v = Math.max(0, Number(e.target.value || 0));
-                              setSizeMap((prev) => ({ ...prev, [s.size]: v }));
+                              setColorSizeMap((prev) => {
+                                const next = { ...prev };
+                                if (!next[colorKey]) next[colorKey] = {};
+                                next[colorKey] = {
+                                  ...next[colorKey],
+                                  [s.size]: Math.min(v, available),
+                                };
+                                return next;
+                              });
                             }}
                             min="0"
                             max={available}
                           />
                           <button
                             onClick={() =>
-                              setSizeMap((prev) => {
-                                const newVal = Math.min(
-                                  available,
-                                  Number(prev[s.size] || 0) + 1
-                                );
-                                return { ...prev, [s.size]: newVal };
-                              })
+                              updateQty(colorKey, s.size, current + 1)
                             }
                           >
                             +
@@ -230,6 +263,18 @@ export default function VariantModal({
               )}
             </div>
           </div>
+
+          {/* Summary of all selected items across colors */}
+          {hasColors && (() => {
+            const totalSelected = collectAllEntries().length;
+            if (totalSelected === 0) return null;
+            return (
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", textAlign: "center", padding: 4 }}>
+                تم اختيار {totalSelected} مقاس
+                {totalSelected > 1 ? "" : ""}
+              </div>
+            );
+          })()}
 
           <div className={styles.priceInput}>
             <label>السعر:</label>

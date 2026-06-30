@@ -109,15 +109,9 @@ function MasrofatContent() {
   useEffect(() => {
     if (!shop) return;
 
-    const now = new Date();
-    const todayStr = `${now.getDate().toString().padStart(2, "0")}/${(
-      now.getMonth() + 1
-    ).toString().padStart(2, "0")}/${now.getFullYear()}`;
-
     const q = query(
       collection(db, "dailySales"),
-      where("shop", "==", shop),
-      where("closedAt", "==", todayStr)
+      where("shop", "==", shop)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
