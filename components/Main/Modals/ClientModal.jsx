@@ -1,6 +1,6 @@
 "use client";
 import styles from "../styles.module.css";
-import { useRef, useState } from "react";
+import { useState, useEffect } from "react";
 import { FaUser, FaPhone, FaWallet, FaMoneyBillWave } from "react-icons/fa";
 
 export default function ClientModal({
@@ -9,17 +9,23 @@ export default function ClientModal({
   onSave,
   isSaving,
 }) {
-  const nameRef = useRef();
-  const phoneRef = useRef();
-  const walletRef = useRef();
+  const [clientName, setClientName] = useState("");
+  const [phone, setPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("cash");
+  const [walletNumber, setWalletNumber] = useState("");
+
+  useEffect(() => {
+    if (isOpen) {
+      setClientName("");
+      setPhone("");
+      setPaymentMethod("cash");
+      setWalletNumber("");
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const handleSave = () => {
-    const clientName = nameRef.current?.value || "";
-    const phone = phoneRef.current?.value || "";
-    const walletNumber = walletRef.current?.value || "";
     onSave({ clientName, phone, paymentMethod, walletNumber });
   };
 
@@ -36,7 +42,8 @@ export default function ClientModal({
             </label>
             <input
               type="text"
-              ref={nameRef}
+              value={clientName}
+              onChange={(e) => setClientName(e.target.value)}
               placeholder="اكتب اسم العميل"
               className={styles.modalInput}
               disabled={isSaving}
@@ -50,7 +57,8 @@ export default function ClientModal({
             </label>
             <input
               type="text"
-              ref={phoneRef}
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
               placeholder="اكتب رقم الهاتف"
               className={styles.modalInput}
               disabled={isSaving}
@@ -67,7 +75,6 @@ export default function ClientModal({
                 <input
                   type="radio"
                   name="paymentMethod"
-                  value="cash"
                   checked={paymentMethod === "cash"}
                   onChange={() => setPaymentMethod("cash")}
                   disabled={isSaving}
@@ -78,7 +85,6 @@ export default function ClientModal({
                 <input
                   type="radio"
                   name="paymentMethod"
-                  value="wallet"
                   checked={paymentMethod === "wallet"}
                   onChange={() => setPaymentMethod("wallet")}
                   disabled={isSaving}
@@ -97,7 +103,8 @@ export default function ClientModal({
               </label>
               <input
                 type="text"
-                ref={walletRef}
+                value={walletNumber}
+                onChange={(e) => setWalletNumber(e.target.value)}
                 placeholder="اكتب رقم المحفظة"
                 className={styles.modalInput}
                 disabled={isSaving}
