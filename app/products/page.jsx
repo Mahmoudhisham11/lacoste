@@ -1,0 +1,1753 @@
+"use client";
+import SideBar from "@/components/SideBar/page";
+import styles from "./styles.module.css";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { MdDriveFileRenameOutline } from "react-icons/md";
+import { GiMoneyStack } from "react-icons/gi";
+import { CiSearch } from "react-icons/ci";
+import { FaRegTrashAlt } from "react-icons/fa";
+import { MdOutlineEdit } from "react-icons/md";
+import { FaRuler } from "react-icons/fa";
+import { FaPlus, FaMinus, FaTrash } from "react-icons/fa6";
+import { BiCategory } from "react-icons/bi";
+import { useRouter } from "next/navigation";
+import {
+  collection,
+  doc,
+  query,
+  where,
+  Timestamp,
+} from "firebase/firestore";
+import { db } from "../firebase";
+import dataLayer from "@/lib/DataLayer";
+import { useProducts } from "@/hooks/useProducts";
+import dataReader from "@/lib/DataReader";
+import Loader from "@/components/Loader/Loader";
+import {
+  NotificationProvider,
+  useNotification,
+} from "@/contexts/NotificationContext";
+
+import { CONFIG } from "@/constants/config";
+import InputModal from "./components/InputModal";
+import ConfirmModal from "@/components/Main/Modals/ConfirmModal";
+
+function ProductsContent() {
+  const { success, error: showError, warning } = useNotification();
+  const [auth, setAuth] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [active, setActive] = useState(false);
+  const [finalPrice, setFinalPrice] = useState("");
+  const [searchCode, setSearchCode] = useState("");
+  const shop = typeof window !== "undefined" ? localStorage.getItem("shop") : "";
+  const { products, loading: productsLoading } = useProducts(shop);
+  const [totalBuy, setTotalBuy] = useState(0);
+  const [totalSell, setTotalSell] = useState(0);
+  const [finaltotal, setFinalTotal] = useState(0);
+  const [totalProducts, setTotalProducts] = useState(0);
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteForm, setDeleteForm] = useState([]);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [productToDelete, setProductToDelete] = useState(null);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsAdmin(localStorage.getItem("role") === "admin");
+    }
+  }, []);
+  // ✅ Lock فوري لمنع تنفيذ الإضافة مرتين (حتى لو المستخدم ضغط مرتين بسرعة قبل ما isSaving يتحدث)
+  const addProductLockRef = useRef(false);
+  const [deletingProductId, setDeletingProductId] = useState(null);
+  const [updatingProductId, setUpdatingProductId] = useState(null);
+  const [form, setForm] = useState({
+    name: "",
+    buyPrice: "",
+    sellPrice: "",
+      color: "",
+        sizeType: "",
+        quantity: "",
+        category: "",
+        merchantName: "",
+  });
+
+  const [colors, setColors] = useState([]);
+  const [editId, setEditId] = useState(null);
+
+  const userName =
+    typeof window !== "undefined" ? localStorage.getItem("userName") : "";
+
+  const [colorTooltip, setColorTooltip] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [modalCategory, setModalCategory] = useState("");
+  const [modalSizeType, setModalSizeType] = useState("");
+  const [tempColors, setTempColors] = useState([]);
+
+  // Input Modal states
+  const [inputModal, setInputModal] = useState({
+    isOpen: false,
+    title: "",
+    message: "",
+    placeholder: "",
+    defaultValue: "",
+    type: "text",
+    onConfirm: null,
+    min: undefined,
+    max: undefined,
+  });
+
+  const sizeGroups = {
+    شبابي: ["36", "37", "38", "39", "40", "41"],
+    رجالي: ["40", "41", "42", "43", "44", "45"],
+    هدوم: ["S", "M", "L", "XL", "2XL"],
+  };
+
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkLock = async () => {
+      const userName = localStorage.getItem("userName");
+      if (!userName) {
+        router.push("/");
+        return;
+      }
+
+      setAuth(true);
+      setLoading(false);
+    };
+    checkLock();
+  }, [router, showError]);
+
+  // ✅ useProducts hook يتولى تحميل البيانات من Firestore
+
+  // Helper function to compute total quantity from colors (must be defined first)
+  const computeTotalQtyFromColors = useCallback((colorsArr) => {
+    if (!Array.isArray(colorsArr)) return 0;
+    let total = 0;
+    colorsArr.forEach((c) => {
+      if (Array.isArray(c.sizes)) {
+        c.sizes.forEach((s) => {
+          total += Number(s.qty || 0);
+        });
+      } else if (c.quantity) {
+        total += Number(c.quantity || 0);
+      }
+    });
+    return total;
+  }, []);
+
+  // Helper function to compute product quantity
+  const computeProductQuantity = useCallback(
+    (product) => {
+      if (product.colors && product.colors.length) {
+        return computeTotalQtyFromColors(product.colors);
+      }
+      return Number(product.quantity || 0);
+    },
+    [computeTotalQtyFromColors]
+  );
+
+  // Filtered products using useMemo
+  const filteredProductsMemo = useMemo(() => {
+    let filtered = products || [];
+
+    if (searchCode.trim()) {
+      const search = searchCode.trim().toLowerCase();
+      filtered = filtered.filter((p) => {
+        const matchCode = p.code?.toString().toLowerCase().includes(search);
+        const matchName = p.name?.toLowerCase().includes(search);
+        const matchColor = Array.isArray(p.colors) && p.colors.some(c => c.color?.toLowerCase().includes(search));
+        return matchCode || matchName || matchColor;
+      });
+    }
+
+    return filtered;
+  }, [products, searchCode]);
+
+  // Calculate totals using useMemo
+  const totals = useMemo(() => {
+    let totalQty = 0;
+    let totalBuyAmount = 0;
+    let totalSellAmount = 0;
+    let finalTotalAmount = 0;
+
+    filteredProductsMemo.forEach((product) => {
+      const productQty = computeProductQuantity(product);
+      totalQty += productQty;
+      totalBuyAmount += (product.buyPrice || 0) * productQty;
+      totalSellAmount += (product.sellPrice || 0) * productQty;
+      finalTotalAmount += (product.finalPrice || 0) * productQty;
+    });
+
+    return {
+      totalQty,
+      totalBuy: totalBuyAmount,
+      totalSell: totalSellAmount,
+      finalTotal: finalTotalAmount,
+    };
+  }, [filteredProductsMemo, computeProductQuantity]);
+
+  // Update state from memoized values
+  useEffect(() => {
+    setTotalProducts(totals.totalQty);
+    setTotalBuy(totals.totalBuy);
+    setTotalSell(totals.totalSell);
+    setFinalTotal(totals.finalTotal);
+  }, [filteredProductsMemo, totals]);
+
+  const getNextCode = useCallback(async () => {
+    const shop = localStorage.getItem("shop");
+    if (!shop) return 1000;
+
+    try {
+      const q = query(
+        collection(db, "lacosteProducts"),
+        where("shop", "==", shop),
+        where("type", "==", "product")
+      );
+      const products = await dataReader.get(q);
+
+      if (products.length > 0) {
+        const codes = products
+          .map((product) => Number(product.code))
+          .filter((code) => !isNaN(code) && code >= 1000);
+
+        if (codes.length > 0) {
+          const maxCode = Math.max(...codes);
+          return maxCode + 1;
+        }
+      }
+    } catch (err) {
+      console.error("Error getting next code from Firestore:", err);
+    }
+
+    return 1000;
+  }, []);
+
+  const computeTotalProducts = (productsArr) => {
+    let total = 0;
+
+    productsArr.forEach((product) => {
+      let qty = 0;
+
+      if (product.colors && product.colors.length) {
+        qty = computeTotalQtyFromColors(product.colors);
+      } else {
+        qty = Number(product.quantity || 0);
+      }
+
+      total += qty;
+    });
+
+    return total;
+  };
+
+  const handleAddProduct = useCallback(async () => {
+    // ✅ منع تنفيذ الإضافة لو بالفعل في عملية إضافة
+    if (isSaving || addProductLockRef.current) {
+      console.warn("Product addition already in progress, skipping duplicate call");
+      return;
+    }
+
+    // Validation
+    if (!form.name.trim()) {
+      showError("يرجى إدخال اسم المنتج");
+      return;
+    }
+
+    if (!form.buyPrice || Number(form.buyPrice) <= 0) {
+      showError("يرجى إدخال سعر شراء صحيح");
+      return;
+    }
+
+    if (!form.sellPrice || Number(form.sellPrice) <= 0) {
+      showError("يرجى إدخال سعر بيع صحيح");
+      return;
+    }
+
+    if (!finalPrice || Number(finalPrice) <= 0) {
+      showError("يرجى إدخال سعر نهائي صحيح");
+      return;
+    }
+
+    if (Number(finalPrice) > Number(form.sellPrice)) {
+      showError("السعر النهائي يجب أن يكون أقل من أو يساوي سعر البيع");
+      return;
+    }
+
+    const shop = localStorage.getItem("shop");
+    if (!shop) {
+      showError("حدث خطأ: المتجر غير محدد");
+      return;
+    }
+
+    // ✅ تعيين lock و loading state قبل بدء العملية
+    addProductLockRef.current = true;
+    setIsSaving(true);
+    
+    try {
+      const newCode = await getNextCode();
+
+      // حساب الكمية
+      const totalQty =
+        colors && colors.length > 0
+          ? computeTotalQtyFromColors(colors)
+          : Number(form.quantity || 0);
+
+      if (totalQty <= 0) {
+        showError("يرجى إدخال كمية أكبر من صفر");
+        // ✅ إعادة تعيين state قبل return
+        addProductLockRef.current = false;
+        setIsSaving(false);
+        return;
+      }
+
+      const productObj = {
+        code: newCode,
+        name: form.name.trim(),
+        buyPrice: Number(form.buyPrice),
+        sellPrice: Number(form.sellPrice),
+        finalPrice: Number(finalPrice),
+        quantity: totalQty,
+        colors: colors && colors.length > 0 ? colors : null,
+        sizeType: form.sizeType || "",
+        category: form.category || "",
+        merchantName: form.merchantName || "",
+        date: Timestamp.now(),
+        shop: shop,
+        type: "product",
+      };
+
+      try {
+        await dataLayer.add("lacosteProducts", productObj);
+        await dataLayer.add("wared", productObj);
+        success("تم إضافة المنتج بنجاح");
+      } catch (addError) {
+        console.error("Error adding product:", addError);
+        throw addError;
+      }
+
+      // تفريغ الفورم
+      setForm({
+        name: "",
+        buyPrice: "",
+        sellPrice: "",
+        color: "",
+        sizeType: "",
+        quantity: "",
+        category: "",
+        merchantName: "",
+      });
+      setFinalPrice("");
+      setColors([]);
+      setTempColors([]);
+      setActive(false);
+    } catch (err) {
+      console.error("Error adding product:", err);
+      showError(
+        `حدث خطأ أثناء إضافة المنتج: ${err.message || "خطأ غير معروف"}`
+      );
+    } finally {
+      // ✅ التأكد من إعادة تعيين state في جميع الحالات
+      addProductLockRef.current = false;
+      setIsSaving(false);
+    }
+  }, [
+    form,
+    finalPrice,
+    colors,
+    getNextCode,
+    computeTotalQtyFromColors,
+    success,
+    showError,
+    isSaving,
+  ]);
+
+  const handleDelete = (product) => {
+    // حفظ المنتج المراد حذفه وفتح popup التأكيد
+    setProductToDelete(product);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+
+    const product = productToDelete;
+    setDeletingProductId(product.id);
+
+    // ✅ حذف المنتج فوراً بدون التحقق من الألوان وبدون حفظ في deletedProducts
+    try {
+      await dataLayer.delete("lacosteProducts", product.id);
+      success("تم حذف المنتج بنجاح");
+    } catch (e) {
+      console.error("Error deleting product:", e);
+      showError(`حدث خطأ أثناء الحذف: ${e.message || "خطأ غير معروف"}`);
+    } finally {
+      setDeletingProductId(null);
+      // إغلاق popup التأكيد ومسح المنتج
+      setShowDeleteConfirm(false);
+      setProductToDelete(null);
+    }
+  };
+
+  const computeTempColorsQty = () => {
+    if (!tempColors || tempColors.length === 0)
+      return Number(form.quantity) || 0;
+    return tempColors.reduce((total, c) => {
+      const colorQty =
+        c.sizes && c.sizes.length
+          ? c.sizes.reduce((sum, s) => sum + Number(s.qty || 0), 0)
+          : 0;
+      return total + colorQty;
+    }, 0);
+  };
+
+  const handleEdit = (product) => {
+    setEditId(product.id);
+    setForm({
+      name: product.name,
+      buyPrice: product.buyPrice,
+      sellPrice: product.sellPrice,
+      color: product.color || "",
+      sizeType: product.sizeType || "",
+      quantity: product.quantity || "",
+      category: product.category || "",
+      merchantName: product.merchantName || "",
+    });
+      setFinalPrice(product.finalPrice);
+      setTempColors([]);
+
+      if (product.colors && product.colors.length) {
+      const normalized = product.colors.map((c) => {
+        if (Array.isArray(c.sizes)) {
+          const sizes = c.sizes.map((s) => ({
+            size: s.size || s.sizeName || s.name || String(s.size),
+            qty: Number(s.qty ?? s.quantity ?? s.count ?? 0),
+          }));
+          return { color: c.color, sizes };
+        } else if (c.quantity !== undefined) {
+          return {
+            color: c.color,
+            sizes: [{ size: "الكمية", qty: Number(c.quantity || 0) }],
+          };
+        } else {
+          return { color: c.color || "غير معروف", sizes: [] };
+        }
+      });
+      setColors(normalized);
+      setTempColors(
+        normalized.map((c) => ({
+          color: c.color,
+          sizes: c.sizes.map((s) => ({ ...s })),
+        }))
+      );
+    } else {
+      setColors([]);
+      setTempColors([]);
+    }
+
+    setActive("edit");
+  };
+
+  const handleUpdateProduct = async () => {
+    if (!editId) return;
+    if (isSaving) return;
+
+    setUpdatingProductId(editId);
+    setIsSaving(true);
+
+    try {
+      const oldProduct = await dataReader.getById("lacosteProducts", editId);
+
+      if (!oldProduct) {
+        showError("المنتج غير موجود");
+        setIsSaving(false);
+        setUpdatingProductId(null);
+        return;
+      }
+
+      // Validation
+      if (!form.buyPrice || Number(form.buyPrice) <= 0) {
+        showError("يرجى إدخال سعر شراء صحيح");
+        setIsSaving(false);
+        setUpdatingProductId(null);
+        return;
+      }
+
+      if (!form.sellPrice || Number(form.sellPrice) <= 0) {
+        showError("يرجى إدخال سعر بيع صحيح");
+        setIsSaving(false);
+        setUpdatingProductId(null);
+        return;
+      }
+
+      const finalPriceNum = Number(finalPrice);
+      if (!finalPrice || finalPriceNum <= 0) {
+        showError("يرجى إدخال سعر نهائي صحيح");
+        setIsSaving(false);
+        setUpdatingProductId(null);
+        return;
+      }
+
+      if (finalPriceNum > Number(form.sellPrice)) {
+        showError("السعر النهائي يجب أن يكون أقل من أو يساوي سعر البيع");
+        setIsSaving(false);
+        setUpdatingProductId(null);
+        return;
+      }
+
+      // لو المستخدم ما فتحش أو ما عدلش الألوان → خلي نفس القديم
+      const finalColors =
+        colors && colors.length > 0
+          ? colors
+          : oldProduct.colors && oldProduct.colors.length > 0
+          ? oldProduct.colors
+          : null;
+
+      // حساب الكمية بشكل صحيح
+      let totalQty = 0;
+      if (finalColors && finalColors.length > 0) {
+        totalQty = computeTotalQtyFromColors(finalColors);
+      } else {
+        totalQty = Number(form.quantity || oldProduct.quantity || 0);
+      }
+
+      const updateData = {
+        name: form.name || "",
+        buyPrice: Number(form.buyPrice) || 0,
+        sellPrice: Number(form.sellPrice) || 0,
+        finalPrice: Number(finalPrice) || 0,
+        quantity: totalQty,
+        colors: finalColors,
+        sizeType: form.sizeType || oldProduct.sizeType || "",
+        category: form.category || oldProduct.category || "",
+        merchantName: form.merchantName || oldProduct.merchantName || "",
+      };
+
+      await dataLayer.update("lacosteProducts", editId, updateData);
+      success("تم تحديث المنتج بنجاح");
+
+      setEditId(null);
+      setForm({
+        name: "",
+        buyPrice: "",
+        sellPrice: "",
+        color: "",
+        sizeType: "",
+        quantity: "",
+        category: "",
+        merchantName: "",
+      });
+      setFinalPrice("");
+      setColors([]);
+      setTempColors([]);
+      setActive(false);
+    } catch (err) {
+      console.error("Error updating product:", err);
+      showError(
+        `حدث خطأ أثناء تحديث المنتج: ${err.message || "خطأ غير معروف"}`
+      );
+    } finally {
+      setIsSaving(false);
+      setUpdatingProductId(null);
+    }
+  };
+
+  const openModalForCategory = (category) => {
+    setModalCategory(category);
+    setModalSizeType(form.sizeType || "");
+    setTempColors(
+      colors.length
+        ? colors.map((c) => ({
+            color: c.color,
+            sizes: c.sizes.map((s) => ({ ...s })),
+          }))
+        : []
+    );
+    setShowModal(true);
+  };
+
+  const handleCategorySelect = (category) => {
+    setForm((prev) => ({ ...prev, category }));
+    // لا تفتح الـ modal إذا كان الصنف "اكسسوار"
+    if (category && category !== "اكسسوار") {
+      openModalForCategory(category);
+    } else {
+      // إذا كان اكسسوار، امسح الألوان
+      setColors([]);
+      setTempColors([]);
+    }
+  };
+
+  const addTempColor = useCallback(() => {
+    setInputModal({
+      isOpen: true,
+      title: "إضافة لون جديد",
+      message: "اكتب اسم اللون الجديد",
+      placeholder: "مثال: أحمر، أزرق، أسود",
+      defaultValue: "",
+      type: "text",
+      onConfirm: (newColor) => {
+        if (!newColor || !newColor.trim()) return;
+        setTempColors((prev) => {
+          const exists = prev.find(
+            (p) => p.color.toLowerCase() === newColor.trim().toLowerCase()
+          );
+          if (exists) {
+            warning("هذا اللون موجود بالفعل");
+            return prev;
+          }
+          return [...prev, { color: newColor.trim(), sizes: [] }];
+        });
+        // ✅ استخدام prev state للتأكد من إغلاق الـ modal بشكل صحيح
+        setInputModal((prev) => ({ ...prev, isOpen: false }));
+      },
+    });
+  }, [warning]);
+
+  const removeTempColor = (colorName) => {
+    setTempColors((prev) => prev.filter((c) => c.color !== colorName));
+  };
+
+  const addTempSizeToColor = useCallback((colorIndex) => {
+    setInputModal({
+      isOpen: true,
+      title: "إضافة مقاس",
+      message: "اكتب اسم المقاس",
+      placeholder: "مثال: M أو 42",
+      defaultValue: "",
+      type: "text",
+      onConfirm: (sizeName) => {
+        if (!sizeName || !sizeName.trim()) return;
+        
+        // ✅ استخدام setTimeout لضمان إغلاق الـ modal الأول قبل فتح الثاني
+        setTimeout(() => {
+          setInputModal((prev) => ({
+            ...prev,
+            isOpen: true,
+            title: "إضافة كمية",
+            message: `اكتب الكمية للمقاس ${sizeName.trim()}`,
+            placeholder: "الكمية",
+            defaultValue: "1",
+            type: "number",
+            min: 1,
+            onConfirm: (qtyStr) => {
+              const qty = Math.max(1, Number(qtyStr || 1));
+              setTempColors((prev) => {
+                const copy = prev.map((c) => ({
+                  color: c.color,
+                  sizes: c.sizes.map((s) => ({ ...s })),
+                }));
+                const target = copy[colorIndex];
+                const existing = target.sizes.find(
+                  (s) => s.size === sizeName.trim()
+                );
+                if (existing) {
+                  existing.qty = Number(existing.qty || 0) + qty;
+                } else {
+                  target.sizes.push({ size: sizeName.trim(), qty });
+                }
+                return copy;
+              });
+              // ✅ استخدام prev state للتأكد من إغلاق الـ modal بشكل صحيح
+              setInputModal((prev) => ({ ...prev, isOpen: false }));
+            },
+          }));
+        }, 100);
+      },
+    });
+  }, []);
+
+  const incTempSizeQty = (colorIndex, sizeName) => {
+    setTempColors((prev) =>
+      prev.map((c, ci) => {
+        if (ci !== colorIndex) return c;
+        return {
+          ...c,
+          sizes: c.sizes.map((s) =>
+            s.size === sizeName ? { ...s, qty: Number(s.qty || 0) + 1 } : s
+          ),
+        };
+      })
+    );
+  };
+
+  const decTempSizeQty = (colorIndex, sizeName) => {
+    setTempColors((prev) =>
+      prev.map((c, ci) => {
+        if (ci !== colorIndex) return c;
+        return {
+          ...c,
+          sizes: c.sizes.map((s) =>
+            s.size === sizeName
+              ? { ...s, qty: Math.max(0, Number(s.qty || 0) - 1) }
+              : s
+          ),
+        };
+      })
+    );
+  };
+
+  const removeTempSizeFromColor = (colorIndex, sizeName) => {
+    setTempColors((prev) =>
+      prev.map((c, ci) => {
+        if (ci !== colorIndex) return c;
+        return { ...c, sizes: c.sizes.filter((s) => s.size !== sizeName) };
+      })
+    );
+  };
+
+  const addPresetSizesToColor = (colorIndex) => {
+    const group =
+      modalCategory === "احذية" && modalSizeType
+        ? sizeGroups[modalSizeType]
+        : modalCategory === "هدوم"
+        ? sizeGroups["هدوم"]
+        : [];
+    if (!group.length) {
+      warning("لا توجد مجموعة جاهزة للصنف/نوع المقاس الحالي");
+      return;
+    }
+    setTempColors((prev) => {
+      const copy = prev.map((c) => ({
+        color: c.color,
+        sizes: c.sizes.map((s) => ({ ...s })),
+      }));
+      const target = copy[colorIndex];
+      group.forEach((sz) => {
+        if (!target.sizes.find((s) => s.size === sz)) {
+          target.sizes.push({ size: sz, qty: 1 });
+        }
+      });
+      return copy;
+    });
+  };
+
+  const saveModal = () => {
+    const cleaned = tempColors
+      .map((c) => ({
+        color: c.color,
+        sizes: (c.sizes || [])
+          .filter((s) => Number(s.qty || 0) > 0)
+          .map((s) => ({ size: s.size, qty: Number(s.qty || 0) })),
+      }))
+      .filter((c) => c.color && c.sizes && c.sizes.length > 0);
+
+    setColors(cleaned);
+    setForm((prev) => ({ ...prev, sizeType: modalSizeType }));
+    setShowModal(false);
+  };
+
+  const cancelModal = () => {
+    setTempColors([]);
+    setShowModal(false);
+  };
+
+  const showColorTooltip = (e, colorData) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const tooltipHeight = 200;
+    let top = rect.top - 8;
+    if (top - tooltipHeight < 10) {
+      top = rect.bottom + 8;
+    }
+    setColorTooltip({
+      top,
+      right: window.innerWidth - rect.right,
+      data: colorData,
+    });
+  };
+
+  const hideColorTooltip = () => {
+    setColorTooltip(null);
+  };
+
+  useEffect(() => {
+    if (!colorTooltip) return;
+    const handleScroll = () => setColorTooltip(null);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [colorTooltip]);
+
+  const handlePrintLabel = useCallback(
+    (product) => {
+      try {
+        if (typeof window === "undefined") return;
+        const printWindow = window.open("", "", "width=400,height=300");
+        if (!printWindow) {
+          showError("تم منع نافذة الطباعة. يرجى السماح بالنوافذ المنبثقة");
+          return;
+        }
+        const htmlContent = `
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1" />
+          <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+          <style>
+            @media print {
+              @page { size: 40mm 30mm; margin: 0; }
+              body { margin:0; padding:0; }
+            }
+            body {
+              width: 40mm;
+              height: 30mm;
+              margin: 0;
+              padding: 0;
+              font-family: Arial, sans-serif;
+              display: flex;
+              justify-content: center;
+              align-items: center;
+            }
+            .label {
+              width: 100%;
+              height: 100%;
+              padding: 0.5mm;
+              box-sizing: border-box;
+              display: flex;
+              flex-direction: column;
+              justify-content: center;
+              align-items: center;
+              overflow: hidden;
+              text-align: center;
+              gap: 0.5mm;
+            }
+              .container {
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+              }
+            .name {
+              font-size: 10pt;
+              font-weight: bold;
+              line-height: 1;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+              max-width: 100%;
+            }
+            .price {
+              font-size: 10pt;
+              line-height: 1;
+              white-space: nowrap;
+              overflow: hidden;
+              text-overflow: ellipsis;
+            }
+            svg.barcode {
+              width: 36mm;
+              height: 15mm;
+            }
+
+          </style>
+        </head>
+        <body>
+          <div class="label">
+          <div class="container">
+          <div class="name">${product.name ?? ""}</div>
+          </div>
+            
+            <svg id="barcode" class="barcode"></svg>
+            <div class="container">
+              <div class="price">${product.code ?? ""} </div>
+              <div class="price">${product.sellPrice ?? ""} EGP </div>
+            </div>
+          </div>
+          <script>
+            window.onload = function () {
+              JsBarcode("#barcode", "${product.code}", {
+                format: "CODE128",
+                displayValue: false,
+                margin: 0,
+                width: 1.5,
+                height: 15
+              });
+              setTimeout(() => {
+                window.print();
+                window.onafterprint = () => window.close();
+              }, 200);
+            };
+          </script>
+        </body>
+      </html>
+    `;
+        printWindow.document.write(htmlContent);
+        printWindow.document.close();
+      } catch (err) {
+        console.error("Error printing label:", err);
+        showError(`حدث خطأ أثناء الطباعة: ${err.message || "خطأ غير معروف"}`);
+      }
+    },
+    [showError]
+  );
+  const confirmDeleteSelected = async () => {
+    if (!deleteTarget || !deleteForm.length) return;
+
+    const shop = localStorage.getItem("shop");
+
+    // تجهيز قائمة العناصر اللي هتتحذف فعليًا
+    const deletedList = [];
+    let deletedTotalQty = 0;
+    let deletedTotalValue = 0; // بناءً على سعر الشراء في المنتج كافتراض
+
+    // validate using for-loops so we can exit early
+    for (let ci = 0; ci < deleteForm.length; ci++) {
+      const color = deleteForm[ci];
+      for (let si = 0; si < color.sizes.length; si++) {
+        const size = color.sizes[si];
+        const dq = Number(size.deleteQty || 0);
+        const available = Number(size.qty || 0);
+
+        if (dq > 0) {
+          if (dq > available) {
+            showError(
+              `لا يمكنك حذف أكثر من الكمية الموجودة للمقاس ${size.size} (اللون ${color.color})`
+            );
+            return; // خروج فوري لو فيه خطأ
+          }
+
+          // تجمع بيانات المحذوف
+          deletedList.push({
+            color: color.color,
+            size: size.size,
+            qty: dq,
+          });
+
+          deletedTotalQty += dq;
+
+          // حساب قيمة المحذوف — نفترض سعر الشراء للمنتج كله
+          const buyPrice = Number(deleteTarget.buyPrice || 0);
+          deletedTotalValue += buyPrice * dq;
+        }
+      }
+    }
+
+    if (deletedList.length === 0) {
+      warning("لم تحدد أي كميات للحذف");
+      return;
+    }
+
+    try {
+      // ✅ ملاحظة: تم إزالة حفظ deletedProducts لأن الـ collection غير مدعوم حالياً
+      // يمكن إضافته لاحقاً إذا لزم الأمر
+
+      // 2) تعديل المنتج الأصلي
+      let updatedColors = deleteTarget.colors.map((c) => ({
+        color: c.color,
+        sizes: c.sizes.map((s) => ({ ...s })),
+      }));
+
+      // طرح الكميات المحذوفة
+      deletedList.forEach((del) => {
+        const col = updatedColors.find((c) => c.color === del.color);
+        if (!col) return;
+        const size = col.sizes.find((s) => String(s.size) === String(del.size));
+        if (!size) return;
+        size.qty = Number(size.qty || 0) - Number(del.qty || 0);
+      });
+
+      // حذف المقاسات اللي بقت صفر
+      updatedColors = updatedColors
+        .map((c) => ({
+          color: c.color,
+          sizes: c.sizes.filter((s) => Number(s.qty || 0) > 0),
+        }))
+        .filter((c) => c.sizes.length > 0);
+
+      // ✅ useProducts hook سيتولى تحديث الـ state تلقائياً من خلال event listeners
+      if (updatedColors.length === 0) {
+        await dataLayer.delete("lacosteProducts", deleteTarget.id);
+      } else {
+        const newQuantity = updatedColors.reduce(
+          (t, c) => t + c.sizes.reduce((s, x) => s + Number(x.qty || 0), 0),
+          0
+        );
+
+        await dataLayer.update("lacosteProducts", deleteTarget.id, {
+          colors: updatedColors,
+          quantity: newQuantity,
+        });
+      }
+
+      // تنظيف الواجهة
+      setShowDeletePopup(false);
+      setDeleteTarget(null);
+      setDeleteForm([]);
+
+      success(
+        `تم حذف ${deletedTotalQty} قطعة (قيمة تقريبية: ${deletedTotalValue.toFixed(
+          2
+        )} EGP كقيمة شراء)`
+      );
+    } catch (err) {
+      console.error("خطأ أثناء عملية الحذف الجزئي:", err);
+      showError(`حدث خطأ أثناء حذف العناصر: ${err.message || "خطأ غير معروف"}`);
+    }
+  };
+
+  if (loading || productsLoading) return <Loader />;
+  if (!auth) return null;
+
+  return (
+    <div className={styles.products}>
+      <SideBar />
+      <div className={styles.content}>
+        {!active && (
+          <div className={styles.stockMenu}>
+            {/* Header */}
+            <div className={styles.menuHeader}>
+              <h1 className={styles.menuTitle}>المنتجات</h1>
+              <div className={styles.headerControls}>
+                {/* Search Box */}
+                <div className={styles.searchContainer}>
+                  <CiSearch className={styles.searchIcon} />
+                  <input
+                    type="text"
+                    list="codesList"
+                    placeholder="ابحث بالاسم أو الكود"
+                    value={searchCode}
+                    onChange={(e) => setSearchCode(e.target.value)}
+                    className={styles.searchInput}
+                  />
+                  <datalist id="codesList">
+                    {products.map((p) => (
+                      <option key={p.id} value={`${p.name || ''} - ${p.code || ''}`} />
+                    ))}
+                  </datalist>
+                </div>
+
+                {/* Add Button */}
+                <button
+                  className={styles.addStockBtn}
+                  onClick={() => {
+                    setActive(true);
+                    setEditId(null);
+                    setTempColors([]);
+                    setColors([]);
+                  }}
+                >
+                  <FaPlus className={styles.addIcon} />
+                  <span>إضافة منتج</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Summary Cards */}
+            <div className={styles.summaryCards}>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي الشراء</span>
+                <span className={styles.summaryValue}>
+                  {totalBuy.toFixed(2)} EGP
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي البيع</span>
+                <span className={styles.summaryValue}>
+                  {totalSell.toFixed(2)} EGP
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي النهائي</span>
+                <span className={styles.summaryValue}>
+                  {finaltotal.toFixed(2)} EGP
+                </span>
+              </div>
+              <div className={styles.summaryCard}>
+                <span className={styles.summaryLabel}>إجمالي المنتجات</span>
+                <span className={styles.summaryValue}>
+                  {totalProducts} قطعة
+                </span>
+              </div>
+            </div>
+
+            {/* Products Table */}
+            <div className={styles.tableWrapper}>
+              <table className={styles.productsTable}>
+                <thead>
+                  <tr>
+                    <th>الكود</th>
+                    <th>الاسم</th>
+                    <th>اسم التاجر</th>
+                    <th>سعر الشراء</th>
+                    <th>سعر البيع</th>
+                    <th>السعر النهائي</th>
+                    <th>الكمية</th>
+                    <th>الألوان</th>
+                    <th>خيارات</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...filteredProductsMemo]
+                    .sort((a, b) => Number(a.code) - Number(b.code)) // ⭐ ترتيب المنتجات حسب الكود
+                    .map((product) => {
+                      const colorsList = product.colors || [];
+                      let totalQ = 0;
+
+                      // حساب الكمية الإجمالية لكل المنتج
+                      colorsList.forEach((c) => {
+                        const colorTotal =
+                          c.sizes && c.sizes.length
+                            ? c.sizes.reduce(
+                                (s, it) => s + Number(it.qty || 0),
+                                0
+                              )
+                            : c.quantity || 0;
+                        totalQ += colorTotal;
+                      });
+
+                      return (
+                        <tr key={product.id}>
+                          <td className={styles.codeCell}>{product.code}</td>
+                          <td className={styles.nameCell}>
+                            {product.name || "-"}
+                          </td>
+                          <td>{product.merchantName || "-"}</td>
+                          <td className={styles.priceCell}>
+                            {product.buyPrice || 0} EGP
+                          </td>
+                          <td className={styles.priceCell}>
+                            {product.sellPrice || 0} EGP
+                          </td>
+                          <td className={styles.priceCell}>
+                            {product.finalPrice} EGP
+                          </td>
+                          <td className={styles.stockCell}>
+                            <span className={styles.stockBadge}>
+                              {totalQ || product.quantity || 0}
+                            </span>
+                          </td>
+                          {/* خلية الألوان */}
+                          <td className={styles.colorsCell}>
+                            {colorsList.length === 0 ? (
+                              <span className={styles.emptyText}>-</span>
+                            ) : (
+                              <div className={styles.colorsList}>
+                                {colorsList.map((c) => {
+                                  const colorTotal =
+                                    c.sizes && c.sizes.length
+                                      ? c.sizes.reduce(
+                                          (s, it) => s + Number(it.qty || 0),
+                                          0
+                                        )
+                                      : c.quantity || 0;
+
+                                  // تجهيز تفاصيل المقاسات للعرض
+                                  return (
+                                    <div
+                                      key={c.color}
+                                      className={styles.colorTagContainer}
+                                      onMouseEnter={(e) =>
+                                        showColorTooltip(e, {
+                                          color: c.color,
+                                          total: colorTotal,
+                                          sizes: c.sizes,
+                                          quantity: c.quantity,
+                                        })
+                                      }
+                                      onMouseLeave={hideColorTooltip}
+                                    >
+                                      <span className={styles.colorTag}>
+                                        {c.color} ({colorTotal})
+                                      </span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </td>
+                          {/* خيارات */}
+                          <td className={styles.actions}>
+                            <div className={styles.actionButtons}>
+                              {isAdmin && (
+                                <button
+                                  className={styles.actionBtn}
+                                  onClick={() => handleEdit(product)}
+                                  title="تعديل"
+                                >
+                                  <MdOutlineEdit />
+                                </button>
+                              )}
+                              {isAdmin && (
+                                <button
+                                  className={`${styles.actionBtn} ${styles.deleteBtn}`}
+                                  onClick={() => handleDelete(product)}
+                                  title="حذف"
+                                  disabled={deletingProductId === product.id}
+                                >
+                                  {deletingProductId === product.id ? (
+                                    <span className={styles.spinner}></span>
+                                  ) : (
+                                    <FaRegTrashAlt />
+                                  )}
+                                </button>
+                              )}
+                              <button
+                                className={styles.actionBtn}
+                                onClick={() => handlePrintLabel(product)}
+                                title="طباعة"
+                              >
+                                🖨️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {(active === true || active === "edit") && (
+          <div className={styles.addContainer}>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <MdDriveFileRenameOutline />
+                </label>
+                <input
+                  type="text"
+                  placeholder="اسم المنتج"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <input
+                  type="number"
+                  placeholder="سعر الشراء"
+                  value={form.buyPrice}
+                  onChange={(e) =>
+                    setForm({ ...form, buyPrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className="inputContainer">
+                <label>
+                  <GiMoneyStack />
+                </label>
+                <input
+                  type="number"
+                  placeholder="سعر البيع"
+                  value={form.sellPrice}
+                  onChange={(e) =>
+                    setForm({ ...form, sellPrice: e.target.value })
+                  }
+                />
+              </div>
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <GiMoneyStack />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="ادخل السعر النهائي"
+                    value={finalPrice}
+                    onChange={(e) => setFinalPrice(e.target.value)}
+                  />
+                </div>
+                <div className={styles.inputBox}>
+                  <div className="inputContainer">
+                    <label>
+                      <MdDriveFileRenameOutline />
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="اسم التاجر"
+                      value={form.merchantName}
+                      onChange={(e) =>
+                        setForm({ ...form, merchantName: e.target.value })
+                      }
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className={styles.inputBox}>
+              <div className="inputContainer">
+                <label>
+                  <BiCategory />
+                </label>
+                <select
+                  value={form.category}
+                  onChange={(e) => handleCategorySelect(e.target.value)}
+                >
+                  <option value="">اختر الصنف</option>
+                  <option value="احذية">احذية</option>
+                  <option value="هدوم">هدوم</option>
+                  <option value="اكسسوار">اكسسوار</option>
+                </select>
+              </div>
+            </div>
+
+            {form.category === "احذية" && (
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <FaRuler />
+                  </label>
+                  <select
+                    value={form.sizeType}
+                    onChange={(e) =>
+                      setForm({ ...form, sizeType: e.target.value })
+                    }
+                  >
+                    <option value="">اختر نوع المقاس</option>
+                    <option value="شبابي">شبابي</option>
+                    <option value="رجالي">رجالي</option>
+                  </select>
+                  <small className={styles.hint}>لم يتم اختيار الوان بعد</small>
+                </div>
+              </div>
+            )}
+
+            {form.category && form.category !== "اكسسوار" && (
+              <div className={styles.inputBox}>
+                <button
+                  className={styles.manageBtn}
+                  onClick={() => openModalForCategory(form.category)}
+                >
+                  تحرير الألوان والمقاسات
+                </button>
+              </div>
+            )}
+
+            <div className={styles.colorsBox}>
+              <h4>تفاصيل الألوان والمقاسات</h4>
+              <div className={styles.totalQtyInfo}>
+                إجمالي الكمية قبل الإضافة: {computeTempColorsQty()}
+              </div>
+
+              {colors.length === 0 && (
+                <p className={styles.emptyState}>لم يتم اضافة الوان بعد</p>
+              )}
+              {colors.map((c, idx) => (
+                <div key={idx} className={styles.sizeRow}>
+                  <strong className={styles.colorName}>{c.color}</strong>
+                  <div className={styles.sizesPreviewContainer}>
+                    {c.sizes && c.sizes.length ? (
+                      c.sizes.map((s, si) => (
+                        <div key={si} className={styles.sizePreviewBadge}>
+                          <span>{s.size}</span>
+                          <span className={styles.sizePreviewQty}>{s.qty}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <em className={styles.emptySizeText}>لا توجد مقاسات</em>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {form.category === "اكسسوار" && (
+              <div className={styles.inputBox}>
+                <div className="inputContainer">
+                  <label>
+                    <FaPlus />
+                  </label>
+                  <input
+                    type="number"
+                    placeholder="الكمية"
+                    value={form.quantity}
+                    onChange={(e) =>
+                      setForm({ ...form, quantity: e.target.value })
+                    }
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className={styles.actionButtonsContainer}>
+              {active === "edit" ? (
+                <button 
+                  className={styles.addBtn} 
+                  onClick={handleUpdateProduct}
+                  disabled={isSaving || updatingProductId === editId}
+                >
+                  {isSaving || updatingProductId === editId ? (
+                    <>
+                      <span className={styles.spinner}></span>
+                      جاري التحديث...
+                    </>
+                  ) : (
+                    "تحديث المنتج"
+                  )}
+                </button>
+              ) : (
+                <button 
+                  className={styles.addBtn} 
+                  onClick={handleAddProduct}
+                  disabled={isSaving}
+                >
+                  {isSaving ? (
+                    <>
+                      <span className={styles.spinner}></span>
+                      جاري الإضافة...
+                    </>
+                  ) : (
+                    "اضف المنتج"
+                  )}
+                </button>
+              )}
+              <button
+                className={styles.viewAllBtn}
+                onClick={() => {
+                  setActive(false);
+                  setEditId(null);
+                }}
+              >
+                كل المنتجات
+              </button>
+            </div>
+          </div>
+        )}
+
+        {showModal && (
+          <div className={styles.modalOverlay} onClick={cancelModal}>
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalContent}>
+                <div className={styles.modalHeader}>
+                  <h3>
+                    اعدادات الألوان والمقاسات — {modalCategory || "الصنف"}
+                  </h3>
+                  <button onClick={cancelModal} className={styles.closeBtn}>
+                    ✖
+                  </button>
+                </div>
+
+                <div style={{ display: "flex", gap: 12, marginBottom: 10 }}>
+                  <button onClick={addTempColor} className={styles.smallBtn}>
+                    ➕ أضف لون
+                  </button>
+                  <button
+                    onClick={() => {
+                      const sample = ["أبيض", "أسود", "أحمر", "أزرق"];
+                      setTempColors((prev) => {
+                        const copy = prev.map((c) => ({
+                          color: c.color,
+                          sizes: c.sizes.map((s) => ({ ...s })),
+                        }));
+                        sample.forEach((col) => {
+                          if (!copy.find((c) => c.color === col))
+                            copy.push({ color: col, sizes: [] });
+                        });
+                        return copy;
+                      });
+                    }}
+                    className={styles.smallBtn}
+                  >
+                    أضف ألوان تجريبية
+                  </button>
+                  {modalCategory === "احذية" && (
+                    <select
+                      value={modalSizeType}
+                      onChange={(e) => setModalSizeType(e.target.value)}
+                      className={styles.modalSelect}
+                    >
+                      <option value="">نوع المقاس (اختياري)</option>
+                      <option value="شبابي">شبابي</option>
+                      <option value="رجالي">رجالي</option>
+                    </select>
+                  )}
+                </div>
+
+                <div className={styles.modalSection}>
+                  <div className={styles.sectionHeader}>
+                    <h4>الألوان المضافة</h4>
+                    <div />
+                  </div>
+
+                  <div
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns:
+                        "repeat(auto-fill, minmax(220px, 1fr))",
+                      gap: 12,
+                      marginTop: 10,
+                    }}
+                  >
+                    {tempColors.map((c, ci) => (
+                      <div key={ci} className={styles.gridItem}>
+                        <div className={styles.colorHeader}>
+                          <div className={styles.colorName}>{c.color}</div>
+                          <div style={{ display: "flex", gap: 6 }}>
+                            <button
+                              onClick={() => addPresetSizesToColor(ci)}
+                              className={styles.smallBtn}
+                            >
+                              إضافة جاهزة
+                            </button>
+                            <button
+                              onClick={() => removeTempColor(c.color)}
+                              className={`${styles.smallBtn} ${styles.delete}`}
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        </div>
+                        <div className={styles.colorContent}>
+                          <div className={styles.addSizeBtnContainer}>
+                            <button
+                              onClick={() => addTempSizeToColor(ci)}
+                              className={styles.smallBtn}
+                            >
+                              ➕ أضف مقاس لهذا اللون
+                            </button>
+                          </div>
+                          <div className={styles.sizesContainer}>
+                            {c.sizes && c.sizes.length ? (
+                              c.sizes.map((s, si) => (
+                                <div key={si} className={styles.sizeRow}>
+                                  <div className={styles.sizeName}>
+                                    {s.size}
+                                  </div>
+                                  <div className={styles.sizeControls}>
+                                    <button
+                                      onClick={() => decTempSizeQty(ci, s.size)}
+                                      className={styles.smallBtn}
+                                    >
+                                      <FaMinus />
+                                    </button>
+                                    <span className={styles.qtyDisplay}>
+                                      {s.qty}
+                                    </span>
+                                    <button
+                                      onClick={() => incTempSizeQty(ci, s.size)}
+                                      className={styles.smallBtn}
+                                    >
+                                      <FaPlus />
+                                    </button>
+                                    <button
+                                      onClick={() =>
+                                        removeTempSizeFromColor(ci, s.size)
+                                      }
+                                      className={`${styles.smallBtn} ${styles.delete}`}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                </div>
+                              ))
+                            ) : (
+                              <div className={styles.emptySizeText}>
+                                لا توجد مقاسات لهذا اللون
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {tempColors.length === 0 && (
+                      <div className={styles.emptyState}>لم تضف ألوان بعد</div>
+                    )}
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    marginTop: 12,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 8,
+                  }}
+                >
+                  <button onClick={cancelModal} className={styles.btnOutline}>
+                    إلغاء
+                  </button>
+                  <button onClick={saveModal} className={styles.btnPrimary}>
+                    حفظ
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+        {showDeletePopup && (
+          <div
+            className={styles.modalOverlay}
+            onClick={() => setShowDeletePopup(false)}
+          >
+            <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+              <div className={styles.modalContent}>
+                <div className={styles.modalHeader}>
+                  <h3>حذف جزء من المنتج — {deleteTarget?.name}</h3>
+                  <button
+                    onClick={() => setShowDeletePopup(false)}
+                    className={styles.closeBtn}
+                  >
+                    ✖
+                  </button>
+                </div>
+
+                <div className={styles.modalSection}>
+                  {deleteForm.map((col, ci) => (
+                    <div key={ci} style={{ marginBottom: 20 }}>
+                      <h4 style={{ marginBottom: 10 }}>{col.color}</h4>
+
+                      {col.sizes.map((sz, si) => (
+                        <div
+                          key={si}
+                          style={{
+                            display: "flex",
+                            justifyContent: "space-between",
+                            alignItems: "center",
+                            padding: "6px 10px",
+                            border: "1px solid #ddd",
+                            borderRadius: 8,
+                            marginBottom: 8,
+                            background: "#fff",
+                          }}
+                        >
+                          <div>
+                            <strong>{sz.size}</strong> — موجود: {sz.qty}
+                          </div>
+
+                          <input
+                            type="number"
+                            min="0"
+                            max={sz.qty}
+                            value={sz.deleteQty}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setDeleteForm((prev) => {
+                                const copy = [...prev];
+                                copy[ci].sizes[si].deleteQty = val;
+                                return copy;
+                              });
+                            }}
+                            style={{
+                              width: 70,
+                              padding: 6,
+                              borderRadius: 6,
+                              border: "1px solid #ccc",
+                            }}
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    gap: 10,
+                  }}
+                >
+                  <button
+                    onClick={() => setShowDeletePopup(false)}
+                    className={styles.btnOutline}
+                  >
+                    إلغاء
+                  </button>
+                  <button
+                    onClick={confirmDeleteSelected}
+                    className={styles.btnPrimary}
+                  >
+                    حذف
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+
+      {/* Floating Tooltip for color sizes */}
+      {colorTooltip && (
+        <div
+          className={styles.floatingTooltip}
+          style={{
+            top: colorTooltip.top,
+            right: colorTooltip.right,
+          }}
+        >
+          <div className={styles.tooltipHeader}>
+            <strong>{colorTooltip.data.color}</strong>
+            <span className={styles.tooltipTotal}>
+              إجمالي: {colorTooltip.data.total}
+            </span>
+          </div>
+          <div className={styles.tooltipSizes}>
+            {colorTooltip.data.sizes && colorTooltip.data.sizes.length ? (
+              colorTooltip.data.sizes.map((s, idx) => (
+                <div key={idx} className={styles.tooltipSizeItem}>
+                  <span className={styles.tooltipSizeName}>{s.size}</span>
+                  <span className={styles.tooltipSizeQty}>{s.qty}</span>
+                </div>
+              ))
+            ) : colorTooltip.data.quantity ? (
+              <div className={styles.tooltipSizeItem}>
+                <span className={styles.tooltipSizeName}>الكمية</span>
+                <span className={styles.tooltipSizeQty}>
+                  {colorTooltip.data.quantity}
+                </span>
+              </div>
+            ) : (
+              <div className={styles.tooltipEmpty}>لا توجد مقاسات</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Input Modal for replacing prompt() */}
+      <InputModal
+        isOpen={inputModal.isOpen}
+        onClose={() => setInputModal({ ...inputModal, isOpen: false })}
+        onConfirm={(value) => {
+          if (inputModal.onConfirm) {
+            inputModal.onConfirm(value);
+          }
+          setInputModal({ ...inputModal, isOpen: false });
+        }}
+        title={inputModal.title}
+        message={inputModal.message}
+        placeholder={inputModal.placeholder}
+        defaultValue={inputModal.defaultValue}
+        type={inputModal.type}
+        min={inputModal.min}
+        max={inputModal.max}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showDeleteConfirm}
+        onClose={() => {
+          setShowDeleteConfirm(false);
+          setProductToDelete(null);
+        }}
+        title="تأكيد الحذف"
+        message={
+          productToDelete
+            ? `هل أنت متأكد أنك تريد حذف المنتج "${productToDelete.name}" (كود: ${productToDelete.code})؟`
+            : "هل أنت متأكد أنك تريد حذف هذا المنتج؟"
+        }
+        onConfirm={handleConfirmDelete}
+        confirmText="حذف"
+        cancelText="إلغاء"
+        type="danger"
+      />
+    </div>
+  );
+}
+
+function Products() {
+  return (
+    <NotificationProvider>
+      <ProductsContent />
+    </NotificationProvider>
+  );
+}
+
+export default Products;

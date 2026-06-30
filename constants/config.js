@@ -1,0 +1,6 @@
+export const CONFIG = {
+  SEARCH_DEBOUNCE: 400,
+  NOTIFICATION_DURATION: 3000
+};
+
+export const DEFAULT_CONFIG = {};
